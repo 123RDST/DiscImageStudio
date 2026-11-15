@@ -1,3 +1,5 @@
+> Tato stránka popisuje **původní projekt**. Změny v této verzi najdete v [čínském README](README.md).
+
 <div align="center">
 
 [简体中文](README.md) | [繁體中文](README.zh-TW.md) | [English](README.en.md) | [日本語](README.ja.md) | [Türkçe](README.tr.md) | [Español](README.es.md) | **Čeština**
@@ -15,9 +17,7 @@ Disc Image Studio je multiplatformní nástroj pro generování a vypalování 
 ![Příspěvky vítány](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square)
 [![Licence: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 
-<a href="https://trendshift.io/repositories/332271?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-332271" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/332271" alt="JiaFeiMiao-K-Cat%2FDiscImageStudio | Trendshift" width="250" height="55"/></a>
 
-<a href="https://discord.gg/7nDs9H3r"><img alt="Připojte se ke komunitě Disc Image Studio na Discordu" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
 
 </div>
 
@@ -224,14 +224,3 @@ Tento projekt je licencován pod [GNU GPL v3.0 nebo novější](LICENSE) (`GPL-3
 
 Děkujeme [projektu CDImage od arduinocelentano](https://github.com/arduinocelentano/cdimage), který ukázal, jak generováním zvukových stop CD vytvořit viditelné obrazy na povrchu disku. Implementace prokládání CD v tomto projektu byla převzata z jeho souvisejícího kódu a dále upravena; přístup ke kreslení na povrch CD byl také inspirován tímto projektem. Práce původního autora a přispěvatelů projektu CDImage poskytuje tomuto projektu důležitý základ.
 
----
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=jiafeimiao-k-cat%2Fdiscimagestudio&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&theme=light&legend=top-left" />
-   <img alt="Graf historie hvězd" src="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&theme=dark&legend=top-left" />
- </picture>
-</a>

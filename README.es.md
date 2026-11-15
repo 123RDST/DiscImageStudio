@@ -1,3 +1,5 @@
+> Esta página documenta el **proyecto original**. Los cambios de esta variante están en el [README en chino](README.md).
+
 <div align="center">
 
 [简体中文](README.md) | [繁體中文](README.zh-TW.md) | [English](README.en.md) | [日本語](README.ja.md) | [Türkçe](README.tr.md) | **Español** | [Čeština](README.cs.md)
@@ -15,9 +17,7 @@ Disc Image Studio es una herramienta multiplataforma de generación y grabación
 ![Contribuciones bienvenidas](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square)
 [![Licencia: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 
-<a href="https://trendshift.io/repositories/332271?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-332271" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/332271" alt="JiaFeiMiao-K-Cat%2FDiscImageStudio | Trendshift" width="250" height="55"/></a>
 
-<a href="https://discord.gg/7nDs9H3r"><img alt="Únete a la comunidad de Discord de Disc Image Studio" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
 
 </div>
 
@@ -268,15 +268,3 @@ Este proyecto se distribuye bajo [GNU GPL v3.0 o posterior](LICENSE) (`GPL-3.0-o
 
 Gracias al [proyecto CDImage de arduinocelentano](https://github.com/arduinocelentano/cdimage), que mostró cómo crear imágenes visibles sobre discos generando pistas de audio CD. La implementación de intercalado CD de este proyecto se portó de su código y se modificó después; también inspiró el enfoque del dibujo sobre superficies CD. El trabajo de su autor original y sus colaboradores constituye una base importante para este proyecto.
 
----
-
-<a id="star-history"></a>
-## Historial de estrellas
-
-<a href="https://www.star-history.com/?repos=jiafeimiao-k-cat%2Fdiscimagestudio&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
-   <img alt="Gráfico del historial de estrellas" src="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
- </picture>
-</a>

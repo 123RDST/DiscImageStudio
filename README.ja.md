@@ -1,3 +1,5 @@
+> このページは**元プロジェクト**の説明です。この改版の変更点は[中国語 README](README.md)をご覧ください。
+
 <div align="center">
 
 [简体中文](README.md) | [繁體中文](README.zh-TW.md) | [English](README.en.md) | **日本語** | [Türkçe](README.tr.md) | [Español](README.es.md) | [Čeština](README.cs.md)
@@ -15,9 +17,7 @@ Disc Image Studio は、あらゆる記録ドライブを使って、あらゆ�
 ![コントリビューション歓迎](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square)
 [![ライセンス：GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 
-<a href="https://trendshift.io/repositories/332271?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-332271" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/332271" alt="JiaFeiMiao-K-Cat%2FDiscImageStudio | Trendshift" width="250" height="55"/></a>
 
-<a href="https://discord.gg/7nDs9H3r"><img alt="Disc Image Studio の Discord コミュニティに参加" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
 
 </div>
 
@@ -223,14 +223,3 @@ CD の共通エンコード部分については、[ECMA-130、第 2 版（CD-RO
 
 [arduinocelentano 氏の CDImage プロジェクト](https://github.com/arduinocelentano/cdimage)に感謝します。このプロジェクトは、CD 音声トラックを生成してディスクの記録面に可視画像を形成する方法を示しました。本プロジェクトの CD インターリーブ実装はその関連コードから移植し、さらに改変したものであり、CD の記録面に描画するという発想もそこから着想を得ています。CDImage の原作者およびコントリビューターの皆さまの成果は、本プロジェクトの重要な基盤となっています。
 
----
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=jiafeimiao-k-cat%2Fdiscimagestudio&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
- </picture>
-</a>

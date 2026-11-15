@@ -1,3 +1,5 @@
+> 本頁是**原專案說明**的譯文，不含本修改版的改進內容。本版改動請見[簡體中文首頁](README.md)。
+
 <div align="center">
 
 [简体中文](README.md) | **繁體中文** | [English](README.en.md) | [日本語](README.ja.md) | [Türkçe](README.tr.md) | [Español](README.es.md) | [Čeština](README.cs.md)
@@ -15,9 +17,7 @@ Disc Image Studio 是一個多平台的光碟表面圖像產生與燒錄工具�
 ![歡迎貢獻](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square)
 [![授權：GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 
-<a href="https://trendshift.io/repositories/332271?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-332271" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/332271" alt="JiaFeiMiao-K-Cat%2FDiscImageStudio | Trendshift" width="250" height="55"/></a>
 
-<a href="https://discord.gg/7nDs9H3r"><img alt="加入 Disc Image Studio 的 Discord 社群" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
 
 </div>
 
@@ -223,14 +223,3 @@ CD 共通編碼部分也參考了 [ECMA-130，第 2 版（CD-ROM，1996）](http
 
 感謝 [arduinocelentano 的 CDImage 專案](https://github.com/arduinocelentano/cdimage)，它展示了透過產生 CD 音軌，在碟面形成可見圖像的方法。本專案的 CD 交錯實作由其相關程式碼移植並持續修改，CD 碟面繪圖的構想也受到其啟發。CDImage 原作者及貢獻者的工作，為本專案提供了重要基礎。
 
----
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=jiafeimiao-k-cat%2Fdiscimagestudio&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
- </picture>
-</a>

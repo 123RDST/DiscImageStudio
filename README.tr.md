@@ -1,3 +1,5 @@
+> Bu sayfa **ön projenin** belgeleridir. Bu çatal sürümdeki değişiklikler için [Çince README](README.md) dosyasına bakın.
+
 <div align="center">
 
 [简体中文](README.md) | [繁體中文](README.zh-TW.md) | [English](README.en.md) | [日本語](README.ja.md) | **Türkçe** | [Español](README.es.md) | [Čeština](README.cs.md)
@@ -15,9 +17,7 @@ Disc Image Studio, herhangi bir kayıt sürücüsüyle herhangi bir DVD / CD / t
 ![Contributions welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 
-<a href="https://trendshift.io/repositories/332271?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-332271" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/332271" alt="JiaFeiMiao-K-Cat%2FDiscImageStudio | Trendshift" width="250" height="55"/></a>
 
-<a href="https://discord.gg/7nDs9H3r"><img alt="Disc Image Studio Discord topluluğuna katılın" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
 
 </div>
 
@@ -222,14 +222,3 @@ Bu proje [GNU GPL v3.0 veya üzeri](LICENSE) (`GPL-3.0-or-later`) lisansı ile l
 
 CD ses izleri oluşturarak disk yüzeyinde görünür görüntüler oluşturulabileceğini gösteren [arduinocelentano'nun CDImage projesine](https://github.com/arduinocelentano/cdimage) teşekkür ederiz. Bu projenin CD serpiştirme (interleaving) uygulaması ilgili koddan uyarlanmış ve geliştirilmiştir; CD yüzeyine çizim yapma yaklaşımı da ondan ilham almıştır. CDImage'ın orijinal yazarının ve katkıda bulunanlarının çalışmaları bu proje için önemli bir temel oluşturmaktadır.
 
----
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=jiafeimiao-k-cat%2Fdiscimagestudio&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
- </picture>
-</a>
