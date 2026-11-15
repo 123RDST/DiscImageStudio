@@ -172,7 +172,7 @@ internal static class CdExtraUiTests
         string files = Path.Combine(directory, "files");
         Directory.CreateDirectory(files);
         File.WriteAllBytes(Path.Combine(files, "notes.bin"), new byte[60 * 2048]);
-        DataRegionInputs inputs = new(OpticalDiscFamily.CompactDisc, files, "CD_EXTRA", false,
+        DataRegionInputs inputs = new(OpticalDiscFamily.CompactDisc, [files], "CD_EXTRA", false,
             40_000, 39_998, 24.5, 32.0, 0, 0, 0, [first, second]);
         (IReadOnlyList<DesignViewModel.DataRegionMm>? regions, CdExtraPlan plan) = DataRegionPlanner.ComputeCdExtra(inputs);
         CdExtraLayout layout = plan.Layout!;
@@ -184,17 +184,17 @@ internal static class CdExtraUiTests
         string big = Path.Combine(directory, "big-files");
         Directory.CreateDirectory(big);
         using (FileStream huge = File.Create(Path.Combine(big, "huge.bin"))) huge.SetLength(60L * 1024 * 1024);
-        (_, CdExtraPlan tooLarge) = DataRegionPlanner.ComputeCdExtra(inputs with { Directory = big });
+        (_, CdExtraPlan tooLarge) = DataRegionPlanner.ComputeCdExtra(inputs with { Sources = [big] });
         Require(tooLarge.Problem == CdExtraPlanProblem.DataCapacity && tooLarge.Layout is not null && !tooLarge.IsValid
                 && CdExtraPlanner.DescribeProblem(tooLarge).Contains("随盘文件太大", StringComparison.Ordinal),
             "disc files that do not fit are not reported as music that is too long");
-        (_, CdExtraPlan missingFolder) = DataRegionPlanner.ComputeCdExtra(inputs with { Directory = Path.Combine(directory, "no-such-folder") });
+        (_, CdExtraPlan missingFolder) = DataRegionPlanner.ComputeCdExtra(inputs with { Sources = [Path.Combine(directory, "no-such-folder")] });
         Require(missingFolder.Problem == CdExtraPlanProblem.DataError && missingFolder.Layout is not null
                 && missingFolder.Tracks.All(track => track.Info is not null)
                 && CdExtraPlanner.DescribeProblem(missingFolder).StartsWith("图片区段无法规划：", StringComparison.Ordinal),
             "a missing folder keeps the music plan and names the problem");
         (IReadOnlyList<DesignViewModel.DataRegionMm>? noFiles, CdExtraPlan noFilesPlan) =
-            DataRegionPlanner.ComputeCdExtra(inputs with { Directory = string.Empty });
+            DataRegionPlanner.ComputeCdExtra(inputs with { Sources = [] });
         Require(noFiles is null && noFilesPlan.IsValid, "without files only the music/gap/picture plan is drawn");
         (_, CdExtraPlan full) = DataRegionPlanner.ComputeCdExtra(inputs with { UsableSectors = 15_000 });
         Require(full.Problem == CdExtraPlanProblem.Capacity && full.Layout is null, "music without room reports capacity");

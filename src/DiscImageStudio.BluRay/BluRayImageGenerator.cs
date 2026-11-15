@@ -11,7 +11,8 @@ public sealed record BluRayImageRequest(
     bool InvertMapping = false,
     string? DataDirectory = null,
     string VolumeLabel = "BD_IMAGE",
-    bool FilesAtOuterRing = false);
+    bool FilesAtOuterRing = false,
+    IReadOnlyList<string>? DataSources = null);
 
 public sealed class BluRayImageGenerator
 {
@@ -70,7 +71,12 @@ public sealed class BluRayImageGenerator
         request.Tone.Validate("tone");
         if (request.Tone.Levels != ToneProfile.TwoLevels)
             throw new ArgumentException("BD image generation accepts only two tone levels.", nameof(request));
-        BluRayIsoPlan plan = BluRayIsoGenerator.PrepareDrawing(request.Parameters, request.DataDirectory,
+        // DataSources is the current shape; DataDirectory is the single-folder form kept for
+        // callers and saved CLI invocations that predate mixed picks.
+        IReadOnlyList<string> dataSources = request.DataSources
+            ?? (string.IsNullOrWhiteSpace(request.DataDirectory) ? [] : [request.DataDirectory]);
+        BluRayIsoPlan plan = BluRayIsoGenerator.PrepareDrawingSources(request.Parameters,
+            dataSources.Count == 0 ? null : dataSources,
             request.VolumeLabel, filesAtOuterRing: request.FilesAtOuterRing);
         BluRayIsoGenerator.ValidateOutputPath(request.OutputPath, plan);
         return plan;

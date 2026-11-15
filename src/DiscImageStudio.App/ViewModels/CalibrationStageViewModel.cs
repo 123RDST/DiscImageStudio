@@ -7,6 +7,8 @@ namespace DiscImageStudio.ViewModels;
 public partial class CalibrationViewModel
 {
     private enum CalibrationStage { Coarse, SingleLine, Fine }
+    // The view selects the fine stage when it opens the recommended timing method. The model
+    // keeps the historical coarse default so saved sessions and headless tests are unchanged.
     private CalibrationStage _stage = CalibrationStage.Coarse;
     public bool IsCoarseMode => _stage == CalibrationStage.Coarse;
     public bool IsIntermediateMode => _stage == CalibrationStage.SingleLine;

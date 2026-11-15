@@ -11,15 +11,25 @@ Disc Image Studio 是一个多平台的光盘盘面图像生成与刻录工具�
 ![.NET 版本](https://img.shields.io/badge/.NET-10.0-512bd4?style=flat-square)
 ![运行平台](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-0078d6?style=flat-square)
 ![开发语言](https://img.shields.io/badge/Language-C%23-68217A?style=flat-square)
-![GitHub Repo size](https://img.shields.io/github/repo-size/JiaFeiMiao-K-Cat/DiscImageStudio?style=flat-square&color=3cb371)
+![GitHub Repo size](https://img.shields.io/github/repo-size/123RDST/DiscImageStudio?style=flat-square&color=3cb371)
 ![贡献欢迎](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square)
 [![许可证：GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 
-<a href="https://trendshift.io/repositories/332271?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-332271" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/332271" alt="JiaFeiMiao-K-Cat%2FDiscImageStudio | Trendshift" width="250" height="55"/></a>
-
-<a href="https://discord.gg/7nDs9H3r"><img alt="加入 Disc Image Studio 的 Discord 社区" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
+<a href="https://discord.gg/7nDs9H3r"><img alt="上游项目的 Discord 社区" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
 
 </div>
+
+
+> **本仓库是非官方修改版。** 基于 [JiaFeiMiao-K-Cat/DiscImageStudio](https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio) 修改，其上游为 [0xfed/DiscImageStudio](https://github.com/0xfed/DiscImageStudio)。遵循 GPL-3.0-or-later，与原作者无隶属关系；需要官方版本请前往上游仓库。
+
+## 这个版本多什么
+
+| 功能 | 本版 | 上游原版 |
+| --- | --- | --- |
+| 标定方式 | **一键标定**：自动刻录测量盘、读取扇区相位、拟合、写入参数，一颗按钮走完 | 需要手工拍照描点（图案标定） |
+| 光盘消耗（DVD） | **一张盘**即可得到内外半径 + 三次轨距分布 | 通常需要多张 |
+| 参数调节 | 阶梯数、每阶读取次数、内圈起点、外圈终点四个滑杆 | 固定测量计划 |
+| 角度修正表 | 应用新几何时自动清空旧表，避免串盘；并随工程文件保存 | 仅随预设保存 |
 
 ---
 
@@ -47,7 +57,7 @@ Disc Image Studio 可将一张图片转换成符合 CD、DVD 与单层 BD-R 光�
 
 ## 快速开始
 
-Windows x64 下载以 `win-x64.exe` 结尾的文件；Windows 11 ARM64 下载以 `win-arm64.exe` 结尾的原生版本，均可直接运行。Linux 或 macOS 请下载与 CPU 匹配的**实验性 CLI** 压缩包，解压后运行 `./disc-image-studio --help`。这些发布包均自带 .NET 运行时。 [GitHub Releases](https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio/releases)
+Windows x64 下载以 `win-x64.exe` 结尾的文件；Windows 11 ARM64 下载以 `win-arm64.exe` 结尾的原生版本，均可直接运行。Linux 或 macOS 请下载与 CPU 匹配的**实验性 CLI** 压缩包，解压后运行 `./disc-image-studio --help`。这些发布包均自带 .NET 运行时。 [GitHub Releases](https://github.com/123RDST/DiscImageStudio/releases)
 
 ### 1. 新建工程
 

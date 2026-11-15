@@ -74,6 +74,12 @@ if (args is ["--test-data-region"])
     return;
 }
 
+if (args is ["--test-angular-residual"])
+{
+    AngularResidualTests.Run();
+    return;
+}
+
 if (args is ["--test-cd-extra"])
 {
     CdExtraLayoutTests.Run();
@@ -242,6 +248,7 @@ CalibrationAngleSweepReaderTests.Run();
 CalibrationStandaloneTests.Run();
 CalibrationMediaReadTests.Run();
 CalibrationCubicPitchTests.Run();
+AngularResidualTests.Run();
 CalibrationCrossExtensionTests.Run();
 BluRayObservedCurveRegressionTests.Run();
 CalibrationShapeSeedTests.Run();
@@ -266,6 +273,13 @@ CalibrationFitLocalizationTests.Run();
 PopupLocalizationTests.Run();
 AppSettingsTests.Run();
 FilesystemMetadataBudgetTests.Run();
+AutoReadmeTests.Run();
+RecentsDeleteTests.Run();
+DriveTimingCalibrationTests.Run();
+OpticalReadSessionTests.Run();
+CalibrationDataImageTests.Run();
+TimingIntegrationTests.Run();
+DriveTimingCubicFitTests.Run();
 DesignDataRegionTests.Run();
 LocalizationTests.Run();
 ThemePaletteTests.Run();
@@ -331,7 +345,7 @@ static void TestDiscPresets()
 {
     DiscPresetJsonDocument builtIn = DiscPresetJsonStore.LoadBuiltIn();
     Equal(4, builtIn.CdPresets.Count, "built-in CD preset count");
-    Equal(8, builtIn.DvdPresets.Count, "built-in DVD preset count");
+    Equal(9, builtIn.DvdPresets.Count, "built-in DVD preset count");
     Equal(5, builtIn.BluRayPresets!.Count, "built-in Blu-ray preset count");
     Equal("zh-CN", builtIn.FallbackLanguage!, "built-in preset fallback language");
     True(
@@ -344,6 +358,15 @@ static void TestDiscPresets()
             !string.IsNullOrWhiteSpace(value.DisplayNameResourceKey)
             && !string.IsNullOrWhiteSpace(value.DescriptionResourceKey)),
         "built-in DVD presets reserve localization resource keys");
+    DvdDiscPresetDefinition shihuangzhe = builtIn.DvdPresets.Single(
+        value => value.Id == "shihuangzhe-dvd");
+    Equal(2_298_496U, shihuangzhe.TotalSectors, "拾荒者特惠DVD sectors");
+    Equal(21, shihuangzhe.AngularResidual?.Count ?? 0, "拾荒者特惠DVD residual knots");
+    double residualPeakDeg = AngularResidualTable.Create(shihuangzhe.AngularResidual!)
+        .MaxAbsRadians * 180 / Math.PI;
+    True(
+        Math.Abs(residualPeakDeg - 1.3303) < 0.001,
+        "拾荒者特惠DVD residual peak is 1.3303 deg (got " + residualPeakDeg + ")");
     Equal(
         builtIn.CdPresets.Count,
         builtIn.CdPresets.Select(value => value.Id).Distinct(StringComparer.Ordinal).Count(),
@@ -546,7 +569,7 @@ static void TestDiscPresetJson()
 
         DiscPresetJsonDocument merged = DiscPresetJsonStore.Merge(builtIn, created);
         Equal(5, merged.CdPresets.Count, "merged CD preset count");
-        Equal(9, merged.DvdPresets.Count, "merged DVD preset count");
+        Equal(10, merged.DvdPresets.Count, "merged DVD preset count");
         Equal(6, merged.BluRayPresets!.Count, "merged Blu-ray preset count");
         DvdDiscPresetDefinition verbatim = merged.DvdPresets.Single(
             value => value.Id == "verbatim-dvd-r-azo-43533");

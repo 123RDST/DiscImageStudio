@@ -25,6 +25,8 @@ internal static class CalibrationReturnButtonTests
         Window? host = null;
         try
         {
+            // Timing measurement is the default method; these checks exercise the photo flow.
+            shell.Calibration.TimingDefaultApplied = true;
             var page = new CalibrationView(shell.Calibration);
             host = new Window { DataContext = shell, Content = page };
             page.Measure(new Size(1200, 740));

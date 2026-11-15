@@ -290,16 +290,16 @@ public partial class ToneViewModel : ObservableObject
                 BluRayDiscParameters parameters = ReadBluRayPreviewParameters();
                 bool invert = _state.BdInvertMapping;
                 ToneProfile tone = _state.BluRayTone;
-                string dataDirectory = _state.BdDataDirectory.Trim();
+                IReadOnlyList<string> dataSources = _state.BdDataSources.ToArray();
                 string volumeLabel = _state.ResolveVolumeLabel(OpticalDiscFamily.BluRay);
-                bool filesAtOuterRing = dataDirectory.Length > 0 && _state.BdFilesAtOuterRing;
-                hasFileRegionOverlay = dataDirectory.Length > 0;
+                bool filesAtOuterRing = dataSources.Count > 0 && _state.BdFilesAtOuterRing;
+                hasFileRegionOverlay = dataSources.Count > 0;
                 samplesPerSector = 0;
                 await StaWorker.RunAsync(() =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    BluRayIsoPlan plan = BluRayIsoGenerator.PrepareDrawing(parameters,
-                        dataDirectory.Length == 0 ? null : dataDirectory,
+                    BluRayIsoPlan plan = BluRayIsoGenerator.PrepareDrawingSources(parameters,
+                        dataSources.Count == 0 ? null : dataSources,
                         volumeLabel,
                         filesAtOuterRing: filesAtOuterRing);
                     cancellationToken.ThrowIfCancellationRequested();
@@ -323,18 +323,18 @@ public partial class ToneViewModel : ObservableObject
             else if (IsDvd)
             {
                 DvdStreamingOptions options = ReadDvdPreviewOptions();
-                string dataDirectory = _state.DvdDataDirectory.Trim();
-                string volumeLabel = dataDirectory.Length > 0
+                IReadOnlyList<string> dataSources = _state.DvdDataSources.ToArray();
+                string volumeLabel = dataSources.Count > 0
                     ? _state.ResolveVolumeLabel(OpticalDiscFamily.Dvd)
                     : string.Empty;
                 bool filesAtOuterRing = _state.DvdFilesAtOuterRing;
-                hasFileRegionOverlay = dataDirectory.Length > 0;
+                hasFileRegionOverlay = dataSources.Count > 0;
                 samplesPerSector = TonePreviewDvdSamplesPerSector;
                 await StaWorker.RunAsync(() =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    DvdHybridStreamingPlan? plan = dataDirectory.Length > 0
-                        ? DvdStreamingGenerator.PrepareHybrid(dataDirectory, options,
+                    DvdHybridStreamingPlan? plan = dataSources.Count > 0
+                        ? DvdStreamingGenerator.PrepareHybridSources(dataSources, options,
                             volumeLabel, filesAtOuterRing)
                         : null;
                     cancellationToken.ThrowIfCancellationRequested();
@@ -361,8 +361,8 @@ public partial class ToneViewModel : ObservableObject
                 CdDiscParameters display = parameters with { ImageOuterRadiusMm = parameters.OutputOuterRadiusMm };
                 ToneProfile tone = _state.Tone;
                 samplesPerSector = TonePreviewSamplesPerSector;
-                string dataDirectory = _state.CdDataDirectory.Trim();
-                string volumeLabel = dataDirectory.Length > 0
+                IReadOnlyList<string> dataSources = _state.CdDataSources.ToArray();
+                string volumeLabel = dataSources.Count > 0
                     ? _state.ResolveVolumeLabel(OpticalDiscFamily.CompactDisc)
                     : string.Empty;
                 bool filesAtOuterRing = _state.CdFilesAtOuterRing;
@@ -370,7 +370,7 @@ public partial class ToneViewModel : ObservableObject
                 bool musicAtOuterRing = _state.CdMusicAtOuterRing;
                 // Audio-only projects may carry a legacy label the hidden field cannot fix.
                 string extraLabel = music is null ? string.Empty : _state.ResolveVolumeLabel(OpticalDiscFamily.CompactDisc);
-                hasFileRegionOverlay = dataDirectory.Length > 0;
+                hasFileRegionOverlay = dataSources.Count > 0;
                 (bool files, bool bands) = await StaWorker.RunAsync(() =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -378,8 +378,8 @@ public partial class ToneViewModel : ObservableObject
                     {
                         // CD-Extra: only the picture session is drawn; the music ring and
                         // the session gap are marked as bands.
-                        CdExtraPlan extra = CdExtraPlanner.Plan(parameters, music,
-                            dataDirectory.Length == 0 ? null : dataDirectory, extraLabel, filesAtOuterRing,
+                        CdExtraPlan extra = CdExtraPlanner.PlanSources(parameters, music,
+                            dataSources.Count == 0 ? null : dataSources, extraLabel, filesAtOuterRing,
                             cancellationToken: cancellationToken, musicAtOuterRing: musicAtOuterRing);
                         cancellationToken.ThrowIfCancellationRequested();
                         if (extra.IsValid && extra.Layout!.MusicAtOuterRing)
@@ -398,7 +398,7 @@ public partial class ToneViewModel : ObservableObject
                                 TonePreviewSize, samplesPerSector, tone, extra.DataPlan, cancellationToken);
                             FileRegionPreviewOverlay.ApplyCdExtra(outputPath, display, extra.Layout!,
                                 extra.DataPlan!, cancellationToken);
-                            return (dataDirectory.Length > 0, true);
+                            return (dataSources.Count > 0, true);
                         }
                         // Only an empty music list falls back to the picture-only disc; any
                         // other problem would preview a disc that export and burn refuse.
@@ -406,8 +406,8 @@ public partial class ToneViewModel : ObservableObject
                             throw new InvalidOperationException(CdExtraPlanner.DescribeProblem(extra));
                     }
 
-                    CdDataLayoutPlan? plan = dataDirectory.Length > 0
-                        ? CdDataImageGenerator.PrepareLayout(dataDirectory, parameters, volumeLabel, filesAtOuterRing)
+                    CdDataLayoutPlan? plan = dataSources.Count > 0
+                        ? CdDataImageGenerator.PrepareLayoutSources(dataSources, parameters, volumeLabel, filesAtOuterRing)
                         : null;
                     cancellationToken.ThrowIfCancellationRequested();
                     if (plan is not null)
@@ -574,7 +574,9 @@ public partial class ToneViewModel : ObservableObject
             PitchQuadratic: ParameterParser.ParseDouble(_state.DvdPitchQuadratic, L.T("DVD 轨距二次项")),
             PitchCubic: ParameterParser.ParseDouble(_state.DvdPitchCubic, L.T("DVD 轨距三次项")),
             UsableSectors: checked((uint)_state.GetUsableSectors(OpticalDiscFamily.Dvd)),
-            Tone: _state.DvdTone);
+            Tone: _state.DvdTone,
+            // The preview shows what the burn will write, so it follows the same correction.
+            AngularResidual: _state.DvdAngularResidual);
         options.Validate();
         return options;
     }

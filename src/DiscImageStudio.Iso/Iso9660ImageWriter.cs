@@ -32,7 +32,7 @@ public static class Iso9660ImageWriter
         internal readonly uint _lbaBias;
 
         internal LayoutPlan(
-            string sourceDirectory,
+            IReadOnlyList<string> sources,
             uint volumeSectors,
             IsoNode root,
             List<IsoNode> directories,
@@ -42,7 +42,8 @@ public static class Iso9660ImageWriter
             DateTimeOffset timestamp,
             uint lbaBias = 0)
         {
-            SourceDirectory = sourceDirectory;
+            SourceDirectories = sources;
+            SourceDirectory = sources.FirstOrDefault(Directory.Exists) ?? string.Empty;
             VolumeSectors = volumeSectors;
             _root = root;
             _directories = directories;
@@ -58,6 +59,10 @@ public static class Iso9660ImageWriter
         }
 
         public string SourceDirectory { get; }
+
+        /// <summary>Every folder the volume was planned from. Loose file picks are excluded:
+        /// an image written next to a picked file is legitimate, next to a scanned folder is not.</summary>
+        public IReadOnlyList<string> SourceDirectories { get; }
 
         public uint VolumeSectors { get; }
 
@@ -91,6 +96,24 @@ public static class Iso9660ImageWriter
         DateTimeOffset? timestamp = null,
         bool filesAtOuterRing = false,
         uint lbaBias = 0)
+        => PlanSources(
+            sourceDirectory is null ? [] : [sourceDirectory],
+            volumeSectors, volumeLabel, timestamp, filesAtOuterRing, lbaBias);
+
+    /// <summary>Plans a volume from several sources. One directory keeps the original
+    /// behaviour — its contents land at the root, so existing projects and presets produce
+    /// byte-identical images. With anything else (several folders, or loose files) each
+    /// folder becomes a subdirectory named after it and loose files land at the root, which
+    /// is what a disc built from mixed picks should look like.</summary>
+    /// <param name="lbaBias">Absolute disc LBA where this volume starts. Zero keeps the
+    /// single-session layout byte-identical; a later CD session passes its start address.</param>
+    public static LayoutPlan PlanSources(
+        IReadOnlyList<string>? sources,
+        uint volumeSectors,
+        string volumeLabel,
+        DateTimeOffset? timestamp = null,
+        bool filesAtOuterRing = false,
+        uint lbaBias = 0)
     {
         if (volumeSectors <= FirstMetadataLba)
         {
@@ -109,20 +132,15 @@ public static class Iso9660ImageWriter
         ArgumentNullException.ThrowIfNull(volumeLabel);
         string primaryVolumeLabel = NormalizePrimaryIdentifier(volumeLabel, 32, "DVD_IMAGE");
         string jolietVolumeLabel = ValidateJolietVolumeLabel(volumeLabel);
-        string sourceFullPath = sourceDirectory is null ? string.Empty : Path.GetFullPath(sourceDirectory);
-        if (sourceDirectory is not null && !Directory.Exists(sourceFullPath))
-            throw new DirectoryNotFoundException($"Data directory does not exist: {sourceFullPath}");
-        if (sourceDirectory is not null && (File.GetAttributes(sourceFullPath) & FileAttributes.ReparsePoint) != 0)
-            throw new IOException($"Reparse points are not supported in --data-dir: {sourceFullPath}");
-
-        IsoNode root = sourceDirectory is null
-            ? new IsoNode(string.Empty, string.Empty, isDirectory: true, parent: null) { Timestamp = timestamp ?? DateTimeOffset.UtcNow }
-            : ReadTree(sourceFullPath);
+        List<string> resolved = ResolveSources(sources);
+        IsoNode root = resolved.Count == 1 && Directory.Exists(resolved[0])
+            ? ReadDirectory(resolved[0], string.Empty, parent: null)
+            : BuildRootFromSources(resolved, timestamp ?? DateTimeOffset.UtcNow);
         List<IsoNode> directories = AssignDirectoryNumbers(root);
         AssignIdentifiers(directories);
         Layout layout = BuildLayout(directories, volumeSectors, filesAtOuterRing);
         return new LayoutPlan(
-            sourceFullPath,
+            resolved,
             volumeSectors,
             root,
             directories,
@@ -131,6 +149,67 @@ public static class Iso9660ImageWriter
             jolietVolumeLabel,
             timestamp ?? DateTimeOffset.UtcNow,
             lbaBias);
+    }
+
+    /// <summary>Normalises the caller's picks: absolute, duplicates dropped, every path
+    /// verified to exist before any sector arithmetic runs. A vanished pick is reported as
+    /// <see cref="DirectoryNotFoundException"/> — the type this API has always thrown for a
+    /// missing folder — so every caller keeps treating it as "the pick is gone, not the
+    /// disc's fault"; the message names the exact path that failed.</summary>
+    private static List<string> ResolveSources(IReadOnlyList<string>? sources)
+    {
+        List<string> resolved = [];
+        if (sources is null) return resolved;
+        foreach (string source in sources)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+                throw new ArgumentException("Data sources must not contain empty paths.", nameof(sources));
+            string full = Path.GetFullPath(source);
+            if (!File.Exists(full) && !Directory.Exists(full))
+                throw new DirectoryNotFoundException($"Data source does not exist: {full}");
+            if (!resolved.Contains(full, StringComparer.OrdinalIgnoreCase)) resolved.Add(full);
+        }
+
+        return resolved;
+    }
+
+    /// <summary>Root tree for mixed sources: folders keep their own name as a subdirectory,
+    /// files go straight to the root. Duplicate names are left to <see cref="AssignIdentifiers"/>
+    /// so both survive with distinct ISO identifiers instead of one silently replacing the other.</summary>
+    private static IsoNode BuildRootFromSources(IReadOnlyList<string> sources, DateTimeOffset timestamp)
+    {
+        IsoNode root = new(string.Empty, string.Empty, isDirectory: true, parent: null)
+        {
+            Timestamp = timestamp,
+        };
+        foreach (string source in sources)
+        {
+            if ((File.GetAttributes(source) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException($"Reparse points are not supported in --data-dir: {source}");
+
+            if (Directory.Exists(source))
+            {
+                string name = Path.GetFileName(Path.TrimEndingDirectorySeparator(source));
+                root.Children.Add(ReadDirectory(source, name.Length == 0 ? "ROOT" : name, root));
+                continue;
+            }
+
+            FileInfo file = new(source);
+            if ((ulong)file.Length > uint.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(sources),
+                    $"ISO9660 files larger than 4 GiB minus 1 byte are not supported: {file.FullName}");
+            }
+
+            root.Children.Add(new IsoNode(file.FullName, file.Name, isDirectory: false, root)
+            {
+                DataLength = file.Length,
+                Timestamp = file.LastWriteTimeUtc,
+            });
+        }
+
+        return root;
     }
 
     public static void WriteSequentialPrefix(
@@ -276,14 +355,14 @@ public static class Iso9660ImageWriter
         }
     }
 
-    private static IsoNode ReadTree(string sourceFullPath)
+    private static IsoNode ReadDirectory(string sourceFullPath, string name, IsoNode? parent)
     {
-        IsoNode root = new(sourceFullPath, string.Empty, isDirectory: true, parent: null)
+        IsoNode directory = new(sourceFullPath, name, isDirectory: true, parent)
         {
             Timestamp = Directory.GetLastWriteTimeUtc(sourceFullPath),
         };
-        PopulateDirectory(root);
-        return root;
+        PopulateDirectory(directory);
+        return directory;
     }
 
     private static void PopulateDirectory(IsoNode directory)

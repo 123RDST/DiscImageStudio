@@ -119,6 +119,8 @@ internal static class DvdReadCompatibilityUiTests
             calibration.Parameters.DvdInnerRadius = "24";
             calibration.Parameters.DvdOuterRadius = "58";
             calibration.Parameters.DvdPitchLinear = calibration.Parameters.DvdPitchQuadratic = calibration.Parameters.DvdPitchCubic = "0";
+            // Timing measurement is the default method; this check exercises the photo flow.
+            calibration.TimingDefaultApplied = true;
             var calibrationPage = new CalibrationView(calibration);
             host.Content = calibrationPage;
             Layout(calibrationPage);

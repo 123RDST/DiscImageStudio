@@ -57,6 +57,7 @@ public partial class CalibrationViewModel : ObservableObject
         InitializePhotoCommands();
         InitializeRingCommands();
         InitializeCapacityCommands();
+        InitializeTimingCommands();
         RefreshCoarseSetup();
         shell.BusyChanged += () => { OnPropertyChanged(nameof(IsBusy)); RefreshCommands(); };
         // The target is a snapshot. Edits here change the setup for the next target.
@@ -149,9 +150,12 @@ public partial class CalibrationViewModel : ObservableObject
     // Default references the listed instance: the class uses reference equality, so a
     // separate object would leave the ComboBox unselected until the user re-picks a range.
     [ObservableProperty] private CoarseSearchRange _selectedCoarseSearchRange = CoarseSearchRanges[0];
+    // The locked entry is last on purpose: auto stays the default, and a user reaches for
+    // the lock only when they want the residual curve to read as angular error.
     private static readonly IReadOnlyList<CoarseSearchRange> CoarseSearchRanges =
         [new(L.T("自动（推荐）"), 0.02, Auto: true), new("±0.02 mm", 0.02),
-         new("±0.1 mm", 0.1), new("±0.5 mm", 0.5)];
+         new("±0.1 mm", 0.1), new("±0.5 mm", 0.5),
+         new(L.T("锁住半径（只测角度）"), 0, Lock: true)];
     public string SearchRangeHeader => SelectedCoarseSearchRange.Auto
         ? L.T("搜索范围（自动）")
         : L.F($"搜索范围（{SelectedCoarseSearchRange.Label}）");
@@ -160,6 +164,20 @@ public partial class CalibrationViewModel : ObservableObject
     [ObservableProperty] private bool _contourConfirmed;
     [ObservableProperty] private bool _fitDvdPitch = true;
     public bool IsDvdTarget => _target?.Parameters.Kind == CalibrationDiscKind.Dvd;
+
+    // A calibration disc normally carries pure geometry, because measuring an error on a disc
+    // that already holds the previous correction returns a leftover and compounds it. But the
+    // fine pattern is also the only thing in the app with a straight radial line to look at, so
+    // people use it to judge straightness too. Those two jobs want opposite discs, so the
+    // correction is an explicit choice instead of being silently dropped.
+    [ObservableProperty] private bool _applyAngularResidualToCalibrationDisc;
+
+    public bool HasAngularResidual => _state.DvdAngularResidual is { IsEmpty: false };
+
+    public string AngularResidualDiscHint => _state.DvdAngularResidual is { IsEmpty: false } table
+        ? L.F($"勾选后这张标定盘会带上当前角度修正表（{table.Count} 个结点，最大 {table.MaxAbsRadians * 180 / Math.PI:0.000}°）。")
+            + L.T("此时它只适合目视检查直线度，不要再拿它反推参数。")
+        : L.T("当前参数没有角度修正表；勾选也不会改变标定盘。");
 
     public bool IsBluRayTarget => _target?.Parameters.Kind == CalibrationDiscKind.BluRay;
     [ObservableProperty] private string _outputPath = string.Empty;
@@ -330,6 +348,14 @@ public partial class CalibrationViewModel : ObservableObject
         return null;
     }
 
+    /// <summary>The correction table follows the shared parameters, and applying a fit replaces
+    /// it, so both the checkbox availability and its hint have to be re-read at those points.</summary>
+    private void NotifyAngularResidualDisc()
+    {
+        OnPropertyChanged(nameof(HasAngularResidual));
+        OnPropertyChanged(nameof(AngularResidualDiscHint));
+    }
+
     private void RefreshApplyParametersState()
     {
         OnPropertyChanged(nameof(ApplyParametersHint));
@@ -350,6 +376,12 @@ public partial class CalibrationViewModel : ObservableObject
 
     partial void OnSelectedDiscTypeChanged(string value)
     {
+        // Timing measurement has no Blu-ray model; switching to BD leaves the pattern flow.
+        // Cubic pitch fitting is DVD-only: CD has an unknown along-track origin.
+        if (value == "BD") UseDriveTiming = false;
+        UseCubicPitch = value == "DVD";
+        ApplyTimingOptionDefaults(value);
+        RefreshTimingProperties();
         CapacityStatus = string.Empty;
         OnPropertyChanged(nameof(CurrentParametersSummary));
         OnPropertyChanged(nameof(IsCdSetup));
@@ -420,8 +452,14 @@ public partial class CalibrationViewModel : ObservableObject
                 CalibrationDiscKind.Dvd => OpticalDiscFamily.Dvd,
                 _ => OpticalDiscFamily.BluRay,
             };
+            // A DVD preset must carry the correction measured for *this* trace. Falling back to
+            // whatever an earlier preset left in the shared state would attach the wrong shape to
+            // these radii.
+            AngularResidualTable? residual = p.Kind == CalibrationDiscKind.Dvd
+                && _fit?.AngularResidual is { IsEmpty: false } measured ? measured : null;
             string name = _state.AddUserPreset(family, result.Name, p.InnerRadiusMm, p.OuterRadiusMm,
-                p.Sectors, p.PitchLinear, p.PitchQuadratic, p.PitchCubic, p.BluRayInvertMapping, p.UsableSectors);
+                p.Sectors, p.PitchLinear, p.PitchQuadratic, p.PitchCubic, p.BluRayInvertMapping, p.UsableSectors,
+                angularResidual: residual);
             // The catalog is shared. Only the list in project dialogs is refreshed.
             _shell.State.UsePresetCatalog(_state);
             _statusMessage = L.F($"已保存为预设：{name}");
@@ -499,6 +537,7 @@ public partial class CalibrationViewModel : ObservableObject
             NotifyTraceStage();
             OnPropertyChanged(nameof(IsDvdTarget));
             OnPropertyChanged(nameof(IsBluRayTarget));
+            NotifyAngularResidualDisc();
             OnPropertyChanged(nameof(StepOneState));
             OnPropertyChanged(nameof(StepTwoState));
             // The target exists, so stage 1 is done and photographing it takes over.
@@ -563,6 +602,7 @@ public partial class CalibrationViewModel : ObservableObject
         FitDvdPitch = FitDvdPitch && _target?.HasSingleRadialLine != true && !HasBoundarySegments,
         AdaptiveRobustScale = true,
         AutoRange = !HasBoundarySegments && SelectedCoarseSearchRange.Auto,
+        LockRadii = SelectedCoarseSearchRange.Lock,
     };
 
     partial void OnFitDvdPitchChanged(bool value)
@@ -691,7 +731,9 @@ public partial class CalibrationViewModel : ObservableObject
     private static FitAttempt FitWithAutoRange(CalibrationTarget target, IReadOnlyList<CalibrationCrossTrace> traces,
         CalibrationFitOptions options, bool auto, CancellationToken token)
     {
-        if (!auto)
+        // A locked fit has nothing to widen: the box is a single point on purpose, so
+        // escalation would silently undo the constraint the user asked for.
+        if (!auto || options.LockRadii)
             return new(CalibrationCrossFitter.Fit(target, traces, options, token), options.RadiusRangeMm, false);
 
         double[] ranges = [options.RadiusRangeMm, 0.1, 0.5, 2, 5];
@@ -752,6 +794,8 @@ public partial class CalibrationViewModel : ObservableObject
         if (_fitRangeExpanded) lines.Add(L.F($"已自动扩大搜索至 ±{_fitRangeMm:0.###} mm。"));
         if (OutlierTracePointIndices.Count > 0)
             lines.Add(L.F($"已标记 {OutlierTracePointIndices.Count} 个偏离较大的点。"));
+        if (_fit.AngularResidual is { IsEmpty: false } residual)
+            lines.Add(L.F($"另测得 {residual.Count} 个角度残差结点（最大 {residual.MaxAbsRadians * 180 / Math.PI:0.00}°），应用参数后随预设保存，可修正三次轨距无法表达的外圈弯曲。"));
         lines.Add(ApplyParametersHint);
         FitAssessment = string.Join(Environment.NewLine, lines.Distinct());
     }
@@ -760,10 +804,25 @@ public partial class CalibrationViewModel : ObservableObject
     {
         if (!CanApplyParameters() || SelectedCoarseCandidate?.Parameters is not { } p) return;
         WriteSetupParameters(p);
+        // The cubic fit reports what is left over. Keep it with the parameters so saving the
+        // preset later carries the measured curvature the three coefficients cannot express.
+        if (p.Kind == CalibrationDiscKind.Dvd && _fit?.AngularResidual is { IsEmpty: false } residual)
+            _state.DvdAngularResidual = residual;
+        NotifyAngularResidualDisc();
         string ri = p.InnerRadiusMm.ToString("G17", CultureInfo.InvariantCulture);
         string ro = p.OuterRadiusMm.ToString("G17", CultureInfo.InvariantCulture);
         _statusMessage = L.Format("CalibrationSetup.FitApplied", ri, ro);
         _shell.AppendLog(_statusMessage + "\n");
+    }
+
+    /// <summary>Drops the working angular table because the radii it was fitted against just
+    /// changed. Saved presets keep their own tables — loading a preset restores its table.</summary>
+    internal bool ClearAngularResidual()
+    {
+        if (_state.DvdAngularResidual is not { IsEmpty: false }) return false;
+        _state.DvdAngularResidual = AngularResidualTable.Empty;
+        NotifyAngularResidualDisc();
+        return true;
     }
 
     private void WriteSetupParameters(CalibrationParameters p)
@@ -989,7 +1048,8 @@ public partial class CalibrationViewModel : ObservableObject
                     }
                     else
                     {
-                        DvdImageGenerator.GenerateCalibration(target, stagedPath, DvdOptions(target), token);
+                        DvdImageGenerator.GenerateCalibration(target, stagedPath,
+                            DvdOptions(target, DiscAngularResidual), token);
                     }
                     token.ThrowIfCancellationRequested();
                     CalibrationSessionJson.Save(Path.ChangeExtension(stagedPath, ".calibration.json"), session);
@@ -1103,13 +1163,22 @@ public partial class CalibrationViewModel : ObservableObject
         catch (Exception ex) { Report(ex); return false; }
     }
 
-    internal static DvdStreamingOptions DvdOptions(CalibrationTarget target) => new(checked((uint)target.Parameters.Sectors),
+    /// <summary>The correction the user asked to write onto this calibration disc. Null keeps
+    /// the pattern as pure geometry, which is what a parameter fit requires.</summary>
+    internal AngularResidualTable? DiscAngularResidual
+        => ApplyAngularResidualToCalibrationDisc && _target?.Parameters.Kind == CalibrationDiscKind.Dvd
+            ? _state.DvdAngularResidual
+            : null;
+
+    internal static DvdStreamingOptions DvdOptions(CalibrationTarget target,
+        AngularResidualTable? angularResidual = null) => new(checked((uint)target.Parameters.Sectors),
         target.Parameters.InnerRadiusMm, target.Parameters.OuterRadiusMm, target.Parameters.LinearDensity, 0,
         PitchLinear: target.Parameters.PitchLinear, PitchQuadratic: target.Parameters.PitchQuadratic,
         PitchCubic: target.Parameters.PitchCubic,
         ReadCompatibility: target.Parameters.DvdReadCompatibility,
         UsableSectors: target.Parameters.UsableSectors is { } usable ? checked((uint)usable) : null,
-        ReadCompatibilityMode: target.EffectiveDvdReadCompatibilityMode);
+        ReadCompatibilityMode: target.EffectiveDvdReadCompatibilityMode,
+        AngularResidual: angularResidual);
     private static void ValidateOutputParameters(CalibrationParameters p)
     {
         p.Validate();
@@ -1154,6 +1223,7 @@ public partial class CalibrationViewModel : ObservableObject
         }
         finally
         {
+            if (UseDriveTiming) TimingStatus = _statusMessage;
             _isSolving = false;
             _cancellation.Dispose(); _cancellation = null;
             _shell.SetBusy(false);
@@ -1179,6 +1249,7 @@ public partial class CalibrationViewModel : ObservableObject
         CancelCommand.NotifyCanExecuteChanged(); RefreshApplyParametersState();
         RefreshPhotoCommands();
         RefreshRingCommands();
+        RefreshTimingProperties();
     }
 
     public sealed record CoarseCandidate(string Label, CalibrationParameters Parameters,
@@ -1189,11 +1260,12 @@ public partial class CalibrationViewModel : ObservableObject
     {
         private readonly string _label;
 
-        public CoarseSearchRange(string label, double radiusRangeMm, bool Auto = false)
+        public CoarseSearchRange(string label, double radiusRangeMm, bool Auto = false, bool Lock = false)
         {
             _label = label;
             RadiusRangeMm = radiusRangeMm;
             this.Auto = Auto;
+            this.Lock = Lock;
         }
 
         public string Label => Auto ? L.T("自动（推荐）") : _label;
@@ -1201,6 +1273,9 @@ public partial class CalibrationViewModel : ObservableObject
         public double RadiusRangeMm { get; }
 
         public bool Auto { get; }
+
+        /// <summary>Pins both radii and measures the angular error alone.</summary>
+        public bool Lock { get; }
 
         public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -10,6 +10,7 @@ using DiscImageStudio.Core;
 using DiscImageStudio.Dvd;
 using DiscImageStudio.Services;
 using MahApps.Metro.IconPacks;
+using Microsoft.VisualBasic.FileIO;
 
 namespace DiscImageStudio.ViewModels;
 
@@ -46,6 +47,7 @@ public partial class HomeViewModel : ObservableObject
         TemplateCommand = new AsyncRelayCommand<HomeTemplateTile>(CreateFromTemplate, _ => !_shell.IsBusy);
         OpenRecentCommand = new AsyncRelayCommand<RecentProjectTile>(OpenRecent, _ => !_shell.IsBusy);
         RemoveRecentCommand = new RelayCommand<RecentProjectTile>(RemoveRecent);
+        DeleteRecentCommand = new AsyncRelayCommand<RecentProjectTile>(DeleteRecentAsync, _ => !_shell.IsBusy);
         ClearRecentsCommand = new RelayCommand(ClearRecents, () => HasRecents);
         _shell.BusyChanged += NotifyCommands;
         _shell.PropertyChanged += Shell_PropertyChanged;
@@ -81,6 +83,15 @@ public partial class HomeViewModel : ObservableObject
     public IAsyncRelayCommand<RecentProjectTile> OpenRecentCommand { get; }
 
     public RelayCommand<RecentProjectTile> RemoveRecentCommand { get; }
+
+    /// <summary>Deletes the project file itself, not just the list entry; the confirm modal
+    /// and the Recycle Bin keep a mis-click recoverable.</summary>
+    public IAsyncRelayCommand<RecentProjectTile> DeleteRecentCommand { get; }
+
+    /// <summary>The Recycle Bin call has a visible side effect outside the app, so tests swap
+    /// it for a plain delete instead of filling the user's own bin.</summary>
+    internal Action<string> ProjectFileDeleter { get; set; } = static path =>
+        FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
 
     public RelayCommand ClearRecentsCommand { get; }
 
@@ -258,6 +269,64 @@ public partial class HomeViewModel : ObservableObject
     {
         _recentStore.Clear();
         RefreshRecentProjects();
+    }
+
+    /// <summary>Right-click deletion: sends the project file to the Recycle Bin and drops the
+    /// entry, so the card and the file both disappear. The open document owns its file through
+    /// the save path, and a delete there would be undone by the next Ctrl+S — that case is
+    /// refused instead of silently resurrecting the file.</summary>
+    private async Task DeleteRecentAsync(RecentProjectTile? tile)
+    {
+        if (tile is null)
+        {
+            return;
+        }
+
+        string path = tile.Entry.ProjectPath;
+        if (string.Equals(path, _shell.ProjectFilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            _shell.ShowToast(
+                L.T("工程正在打开"),
+                L.T("请先关闭当前工程，再删除它的文件。"),
+                ToastKind.Warning);
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            _recentStore.Remove(path);
+            RefreshRecentProjects();
+            _shell.ShowToast(
+                L.T("工程文件已不存在"),
+                L.F($"{path}\n") + L.T("该条目已从最近工程中移除。"),
+                ToastKind.Warning);
+            return;
+        }
+
+        bool confirmed = await _shell.ConfirmAsync(
+            L.T("删除工程文件"),
+            L.F($"{path}\n\n") + L.T("文件将被移到回收站，必要时可在资源管理器中还原。"),
+            L.T("删除"));
+        if (!confirmed)
+        {
+            return;
+        }
+
+        try
+        {
+            // Recycle Bin rather than a hard delete: the confirm modal is one click away from
+            // the harmless list removal, so the file itself stays recoverable.
+            ProjectFileDeleter(path);
+            _recentStore.Remove(path);
+            RefreshRecentProjects();
+            _shell.ShowToast(L.T("已删除工程文件"), Path.GetFileName(path), ToastKind.Success);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // Locked, read-only or gone between the check and the delete: keep the card so the
+            // path stays reachable and the reason is visible.
+            _shell.ShowToast(L.T("无法删除工程文件"), ex.Message, ToastKind.Error);
+        }
     }
 
     /// <summary>Presets name themselves after what the disc is; a trailing 「（…）」 marks how

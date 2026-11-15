@@ -19,7 +19,8 @@ public sealed record CdImageRequest(
     bool FilesAtOuterRing = false,
     IReadOnlyList<string>? MusicTracks = null,
     long? Session2StartLba = null,
-    bool MusicAtOuterRing = false);
+    bool MusicAtOuterRing = false,
+    IReadOnlyList<string>? DataSources = null);
 
 public static class CdImageGenerator
 {
@@ -38,10 +39,10 @@ public static class CdImageGenerator
                 ? GenerateHiddenPicture(request, music, progress, cancellationToken)
                 : GenerateCdExtra(request, music, progress, cancellationToken);
         }
-        string? dataDirectory = request.DataDirectory?.Trim();
-        if (!string.IsNullOrEmpty(dataDirectory))
+        IReadOnlyList<string> dataSources = ResolveSources(request);
+        if (dataSources.Count > 0)
         {
-            CdDataLayoutPlan plan = CdDataImageGenerator.PrepareLayout(dataDirectory, request.Parameters,
+            CdDataLayoutPlan plan = CdDataImageGenerator.PrepareLayoutSources(dataSources, request.Parameters,
                 request.VolumeLabel, request.FilesAtOuterRing);
             CdGenerationSummary dataSummary = CdDataImageGenerator.Generate(request.SourceImage,
                 request.OutputPath, request.Parameters, plan,
@@ -126,12 +127,19 @@ public static class CdImageGenerator
     /// as the pre-gap (index 0) of track 1, then the music tracks without gaps, and a CUE
     /// sheet that starts track 1 at the music. Players begin at index 1, so the picture is not played
     /// unless a listener rewinds before the first track.</summary>
+    /// <summary>DataSources is the current shape; DataDirectory is the single-folder form kept
+    /// for callers and saved CLI invocations that predate mixed picks.</summary>
+    private static IReadOnlyList<string> ResolveSources(CdImageRequest request)
+        => request.DataSources is { Count: > 0 } sources
+            ? sources
+            : string.IsNullOrWhiteSpace(request.DataDirectory) ? [] : [request.DataDirectory.Trim()];
+
     private static DiscImageResult GenerateHiddenPicture(CdImageRequest request, IReadOnlyList<string> music,
         IProgress<DiscJobProgress>? progress, CancellationToken cancellationToken)
     {
         if (request.Session2StartLba is not null)
             throw new ArgumentException("A session 2 start applies only to music on the inner rings (CD-Extra).");
-        if (!string.IsNullOrWhiteSpace(request.DataDirectory))
+        if (ResolveSources(request).Count > 0)
         {
             throw new ArgumentException("Disc files cannot be combined with music on the outer rings: the disc is "
                 + "an audio disc. Put the music on the inner rings (CD-Extra) to add files.");
@@ -203,6 +211,14 @@ public static class CdImageGenerator
     private static DiscImageResult GenerateCdExtra(CdImageRequest request, IReadOnlyList<string> music,
         IProgress<DiscJobProgress>? progress, CancellationToken cancellationToken)
     {
+        // The CD-Extra picture session still takes one source; the extra session's metadata
+        // budget is planned around a single tree, so refuse rather than silently drop picks.
+        if (ResolveSources(request).Count > 1)
+        {
+            throw new ArgumentException("CD-Extra supports one data source. Choose a single folder "
+                + "(or a single file) for the picture session.");
+        }
+
         List<CdMusicTrackInfo> tracks = new(music.Count);
         foreach (string path in music)
         {
@@ -212,8 +228,8 @@ public static class CdImageGenerator
 
         CdExtraLayout layout = CdExtraLayout.Plan(request.Parameters,
             tracks.Select(track => track.RecordedSectors).ToArray(), request.Session2StartLba);
-        CdDataLayoutPlan plan = CdDataImageGenerator.PrepareSessionLayout(request.Parameters,
-            layout.Session2StartLba, layout.DataTrackSectors, request.DataDirectory, request.VolumeLabel,
+        CdDataLayoutPlan plan = CdDataImageGenerator.PrepareSessionLayoutSources(request.Parameters,
+            layout.Session2StartLba, layout.DataTrackSectors, ResolveSources(request), request.VolumeLabel,
             request.FilesAtOuterRing);
         CdGenerationSummary summary = CdDataImageGenerator.Generate(request.SourceImage,
             request.OutputPath, request.Parameters, plan,

@@ -557,6 +557,87 @@
     "es": "No se puede abrir el proyecto",
     "cs": "Projekt nejde otevřít"
   },
+  "删除工程文件": {
+    "zh-CN": "删除工程文件",
+    "en": "Delete project file",
+    "zh-TW": "刪除專案檔案",
+    "ja": "プロジェクトファイルの削除",
+    "tr": "Proje dosyasını sil",
+    "es": "Eliminar archivo de proyecto",
+    "cs": "Smazat soubor projektu"
+  },
+  "文件将被移到回收站，必要时可在资源管理器中还原。": {
+    "zh-CN": "文件将被移到回收站，必要时可在资源管理器中还原。",
+    "en": "The file moves to the Recycle Bin and can be restored from Explorer if needed.",
+    "zh-TW": "檔案將被移到資源回收筒，必要時可在檔案總管中還原。",
+    "ja": "ファイルはごみ箱に移動します。必要ならエクスプローラーから復元できます。",
+    "tr": "Dosya Geri Dönüşüm Kutusu'na taşınır; gerekirse Dosya Gezgini'nden geri yükleyebilirsiniz.",
+    "es": "El archivo se mueve a la Papelera de reciclaje; puede restaurarlo desde el Explorador si es necesario.",
+    "cs": "Soubor se přesune do koše; v\u00A0případě potřeby jej můžete obnovit v\u00A0Průzkumníku."
+  },
+  "删除": {
+    "zh-CN": "删除",
+    "en": "Delete",
+    "zh-TW": "刪除",
+    "ja": "削除",
+    "tr": "Sil",
+    "es": "Eliminar",
+    "cs": "Smazat"
+  },
+  "已删除工程文件": {
+    "zh-CN": "已删除工程文件",
+    "en": "Project file deleted",
+    "zh-TW": "已刪除專案檔案",
+    "ja": "プロジェクトファイルを削除しました",
+    "tr": "Proje dosyası silindi",
+    "es": "Archivo de proyecto eliminado",
+    "cs": "Soubor projektu smazán"
+  },
+  "无法删除工程文件": {
+    "zh-CN": "无法删除工程文件",
+    "en": "Cannot delete project file",
+    "zh-TW": "無法刪除專案檔案",
+    "ja": "プロジェクトファイルを削除できません",
+    "tr": "Proje dosyası silinemiyor",
+    "es": "No se puede eliminar el archivo de proyecto",
+    "cs": "Soubor projektu nejde smazat"
+  },
+  "工程正在打开": {
+    "zh-CN": "工程正在打开",
+    "en": "Project is open",
+    "zh-TW": "專案正在開啟",
+    "ja": "プロジェクトを開いています",
+    "tr": "Proje açık",
+    "es": "El proyecto está abierto",
+    "cs": "Projekt je otevřený"
+  },
+  "请先关闭当前工程，再删除它的文件。": {
+    "zh-CN": "请先关闭当前工程，再删除它的文件。",
+    "en": "Close the project first, then delete its file.",
+    "zh-TW": "請先關閉目前專案，再刪除它的檔案。",
+    "ja": "先にプロジェクトを閉じてから、そのファイルを削除してください。",
+    "tr": "Önce projeyi kapatın, sonra dosyasını silin.",
+    "es": "Cierre el proyecto primero y luego elimine su archivo.",
+    "cs": "Nejprve projekt zavřete, potom jeho soubor smažte."
+  },
+  "工程文件已不存在": {
+    "zh-CN": "工程文件已不存在",
+    "en": "Project file is gone",
+    "zh-TW": "專案檔案已不存在",
+    "ja": "プロジェクトファイルが見つかりません",
+    "tr": "Proje dosyası artık yok",
+    "es": "El archivo de proyecto ya no existe",
+    "cs": "Soubor projektu už neexistuje"
+  },
+  "该条目已从最近工程中移除。": {
+    "zh-CN": "该条目已从最近工程中移除。",
+    "en": "The entry was removed from recent projects.",
+    "zh-TW": "該項目已從最近專案中移除。",
+    "ja": "この項目は最近使ったプロジェクトから削除されました。",
+    "tr": "Girdi son projelerden kaldırıldı.",
+    "es": "La entrada se quitó de los proyectos recientes.",
+    "cs": "Položka byla odebrána z\u00A0nedávných projektů."
+  },
   "无随盘文件时生成音轨，推荐 WAV 格式。": {
     "zh-CN": "无随盘文件时生成音轨，推荐 WAV 格式。",
     "en": "Without included files, an audio track is generated. WAV format is recommended.",

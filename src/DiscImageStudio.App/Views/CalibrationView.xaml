@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:DiscImageStudio.Localization"
              xmlns:controls="clr-namespace:DiscImageStudio.Controls"
+             xmlns:views="clr-namespace:DiscImageStudio.Views"
              xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
              xmlns:vm="clr-namespace:DiscImageStudio.ViewModels"
              SizeChanged="OnViewSizeChanged">
@@ -26,36 +27,54 @@
                 </WrapPanel>
             </controls:PageHeader.Actions>
         </controls:PageHeader>
-        <WrapPanel Grid.Row="1" Margin="0,0,0,10">
-            <RadioButton x:Name="CoarsePhase" GroupName="CalibrationPhase"
-                         IsChecked="{Binding IsCoarseMode, Mode=OneWay}" Command="{Binding SelectCoarseModeCommand}"
-                         AutomationProperties.Name="{loc:Text Xaml.CoarseCalibrationPhase}" Margin="0,0,28,6">
-                <StackPanel>
-                    <TextBlock Text="{loc:Text Xaml.CoarseCalibrationPhase}" FontWeight="SemiBold" />
-                    <TextBlock Text="{loc:Text Xaml.CoarseCalibrationPurpose}" Style="{StaticResource CompactHint}" />
-                </StackPanel>
-            </RadioButton>
-            <RadioButton x:Name="IntermediatePhase" GroupName="CalibrationPhase"
-                         IsChecked="{Binding IsIntermediateMode, Mode=OneWay}" Command="{Binding SelectIntermediateModeCommand}"
-                         AutomationProperties.Name="{loc:Text HalfDisc.Stage}" Margin="0,0,28,6">
-                <StackPanel>
-                    <TextBlock Text="{loc:Text HalfDisc.Stage}" FontWeight="SemiBold" />
-                    <TextBlock Text="{loc:Text HalfDisc.Purpose}" Style="{StaticResource CompactHint}" />
-                </StackPanel>
-            </RadioButton>
-            <RadioButton x:Name="FinePhase" GroupName="CalibrationPhase"
-                         IsChecked="{Binding IsFineMode, Mode=OneWay}" Command="{Binding SelectFineModeCommand}"
-                         AutomationProperties.Name="{loc:Text Xaml.FineCalibrationPhase}" Margin="0,0,0,6">
-                <StackPanel>
-                    <TextBlock Text="{loc:Text Xaml.FineCalibrationPhase}" FontWeight="SemiBold" />
-                    <TextBlock Text="{loc:Text Xaml.FineCalibrationPurpose}" Style="{StaticResource CompactHint}" />
-                </StackPanel>
-            </RadioButton>
-        </WrapPanel>
+        <StackPanel Grid.Row="1">
+            <!-- One row, one choice: the one-click method and the three photo stages share a
+                 single radio group, so the row reads as four ways to calibrate rather than two
+                 nested ones. Picking a stage also switches the method back to the photo flow. -->
+            <WrapPanel Margin="0,0,0,10">
+                <RadioButton GroupName="CalibrationMethod" IsChecked="{Binding UseDriveTiming, Mode=OneWay}"
+                             Command="{Binding SelectDriveTimingCommand}" IsEnabled="{Binding CanSelectDriveTiming}"
+                             AutomationProperties.Name="{loc:Text Timing.Method}" Margin="0,0,28,6">
+                    <StackPanel>
+                        <TextBlock Text="{loc:Text Timing.Method}" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:Text Timing.MethodHint}" Style="{StaticResource CompactHint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="CoarsePhase" GroupName="CalibrationMethod"
+                             IsChecked="{Binding ShowCoarseStageSelection, Mode=OneWay}"
+                             Command="{Binding SelectStageFromMethodRowCommand}" CommandParameter="coarse"
+                             AutomationProperties.Name="{loc:Text Xaml.CoarseCalibrationPhase}" Margin="0,0,28,6">
+                    <StackPanel>
+                        <TextBlock Text="{loc:Text Xaml.CoarseCalibrationPhase}" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:Text Xaml.CoarseCalibrationPurpose}" Style="{StaticResource CompactHint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="IntermediatePhase" GroupName="CalibrationMethod"
+                             IsChecked="{Binding ShowSingleLineStageSelection, Mode=OneWay}"
+                             Command="{Binding SelectStageFromMethodRowCommand}" CommandParameter="single"
+                             AutomationProperties.Name="{loc:Text HalfDisc.Stage}" Margin="0,0,28,6">
+                    <StackPanel>
+                        <TextBlock Text="{loc:Text HalfDisc.Stage}" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:Text HalfDisc.Purpose}" Style="{StaticResource CompactHint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="FinePhase" GroupName="CalibrationMethod"
+                             IsChecked="{Binding ShowFineStageSelection, Mode=OneWay}"
+                             Command="{Binding SelectStageFromMethodRowCommand}" CommandParameter="fine"
+                             AutomationProperties.Name="{loc:Text Xaml.FineCalibrationPhase}" Margin="0,0,0,6">
+                    <StackPanel>
+                        <TextBlock Text="{loc:Text Xaml.FineCalibrationPhase}" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:Text Xaml.FineCalibrationPurpose}" Style="{StaticResource CompactHint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </RadioButton>
+            </WrapPanel>
+        </StackPanel>
         <!-- One scroll surface: in the wide layout the work area is exactly the viewport tall
              (the step column is an accordion that never grows past it), in the narrow layout
              it stacks and the page scrolls as one. -->
-        <ScrollViewer x:Name="WorkScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto"
+        <controls:VisibilityGate Grid.Row="2" IsOpen="{Binding ShowPatternCalibration}"
+                                 HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+        <ScrollViewer x:Name="WorkScroll" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled" ScrollChanged="OnWorkScrollChanged"
                       SizeChanged="OnWorkspaceSizeChanged" controls:ScrollMaskBehavior.Enabled="True">
             <Grid x:Name="WorkArea">
@@ -403,6 +422,16 @@
 
                                 <!-- Two delivery paths, named by what the user does next:
                                      burn here, or take a generated file to another burner. -->
+                                <controls:VisibilityGate IsOpen="{Binding IsDvdTarget}">
+                                    <StackPanel Margin="0,14,0,0">
+                                        <CheckBox IsChecked="{Binding ApplyAngularResidualToCalibrationDisc, Mode=TwoWay}"
+                                                  IsEnabled="{Binding HasAngularResidual}"
+                                                  Content="{loc:Text Xaml.ApplyAngularCorrectionToCalibrationDisc}"
+                                                  Style="{StaticResource CompactCheckBox}" />
+                                        <TextBlock Text="{Binding AngularResidualDiscHint}" TextWrapping="Wrap"
+                                                   Style="{StaticResource CompactHint}" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </controls:VisibilityGate>
                                 <TextBlock Text="{loc:Text Xaml.Burn}" Style="{StaticResource FieldLabel}" Margin="0,14,0,6" />
                                 <Button Content="{loc:Text Xaml.OpenStreamingBurn}" Command="{Binding StreamBurnCommand}"
                                         Style="{StaticResource CompactButton}" HorizontalAlignment="Left"
@@ -652,5 +681,10 @@
                 </Grid>
             </Grid>
         </ScrollViewer>
+        </controls:VisibilityGate>
+        <controls:VisibilityGate Grid.Row="2" IsOpen="{Binding UseDriveTiming}"
+                                 HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+            <views:DriveTimingCalibrationView />
+        </controls:VisibilityGate>
     </Grid>
 </UserControl>

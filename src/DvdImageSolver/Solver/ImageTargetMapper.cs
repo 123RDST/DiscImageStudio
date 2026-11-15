@@ -18,7 +18,11 @@ public sealed record ImageMappingOptions(
     double PitchCubic = 0,
     ToneProfile? Tone = null,
     uint? UsableSectors = null,
-    double? ImageOuterRadiusMm = null)
+    double? ImageOuterRadiusMm = null,
+    // Measured angular correction for the disc this image is burned on. Radius stays untouched,
+    // so the design's radial features land where the spiral model puts them, without the local
+    // curvature the cubic pitch cannot express.
+    AngularResidualTable? AngularResidual = null)
 {
     public uint OutputSectors => UsableSectors ?? TotalSectors;
     public double SamplingOuterRadiusMm => ImageOuterRadiusMm ?? OuterRadiusMm;
@@ -85,7 +89,8 @@ internal static class ImageTargetMapper
             trackLengthMm,
             options.PitchLinear,
             options.PitchQuadratic,
-            options.PitchCubic);
+            options.PitchCubic,
+            options.AngularResidual);
 
         double startAngleRadians = options.StartAngleDegrees * Math.PI / 180.0;
         double direction = options.Clockwise ? -1.0 : 1.0;

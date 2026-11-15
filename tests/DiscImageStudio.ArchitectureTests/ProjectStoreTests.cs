@@ -11,6 +11,7 @@ internal static class ProjectStoreTests
         TestOverwritePreservesSingleFile();
         TestLegacyImageProcessingSection();
         TestValidation();
+        TestAngularResidual();
         Require(true, "completed");
     }
 
@@ -235,6 +236,37 @@ internal static class ProjectStoreTests
         catch (InvalidDataException)
         {
         }
+    }
+
+    // The measured angular table belongs to the disc, not to the preset that produced the
+    // geometry: it has to survive with the project even when that preset is gone.
+    private static void TestAngularResidual()
+    {
+        List<AngularResidualPoint> table = [new(0, 0), new(0.5, 0.004), new(1, 0.007)];
+        ProjectDocument document = CreateDocument() with
+        {
+            Geometry = new ProjectGeometry(24.0, 58.0, 2_295_104, 0.001, -0.0002, 0.00001,
+                AngularResidual: table),
+        };
+        string directory = CreateTempDirectory();
+        string path = Path.Combine(directory, "angular.discproj");
+        ProjectJsonStore.Save(path, document);
+
+        string json = File.ReadAllText(path);
+        Require(json.Contains("\"schemaVersion\": 3", StringComparison.Ordinal),
+            "a project that carries the angular table is written as schemaVersion 3");
+        ProjectDocument loaded = ProjectJsonStore.Load(path);
+        Require(loaded.Geometry.AngularResidual is { Count: 3 }, "the angular table round-trips");
+        Require(Math.Abs(loaded.Geometry.AngularResidual![1].Radians - 0.004) < 1e-12,
+            "the angular table keeps its knot values");
+
+        ProjectDocument plain = CreateDocument();
+        string plainPath = Path.Combine(directory, "plain.discproj");
+        ProjectJsonStore.Save(plainPath, plain);
+        Require(File.ReadAllText(plainPath).Contains("\"schemaVersion\": 2", StringComparison.Ordinal),
+            "a project without a table stays schemaVersion 2");
+        Require(ProjectJsonStore.Load(plainPath).Geometry.AngularResidual is null,
+            "a project without a table loads without one");
     }
 
     private static void TestValidation()

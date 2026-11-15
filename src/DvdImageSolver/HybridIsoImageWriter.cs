@@ -26,6 +26,7 @@ public static class HybridIsoImageWriter
         internal LayoutPlan(Iso9660ImageWriter.LayoutPlan layout) => Layout = layout;
         internal Iso9660ImageWriter.LayoutPlan Layout { get; }
         public string SourceDirectory => Layout.SourceDirectory;
+        public IReadOnlyList<string> SourceDirectories => Layout.SourceDirectories;
         public uint VolumeSectors => Layout.VolumeSectors;
         public int FileCount => Layout.FileCount;
         public int DirectoryCount => Layout.DirectoryCount;
@@ -41,6 +42,16 @@ public static class HybridIsoImageWriter
     {
         ArgumentNullException.ThrowIfNull(sourceDirectory);
         return new(Iso9660ImageWriter.Plan(sourceDirectory, volumeSectors, volumeLabel,
+            filesAtOuterRing: filesAtOuterRing));
+    }
+
+    /// <summary>Plans from mixed picks: folders keep their name as a subdirectory, loose files
+    /// land at the root. One folder alone keeps the original flat layout.</summary>
+    public static LayoutPlan PlanSources(IReadOnlyList<string> sources, uint volumeSectors,
+        string volumeLabel, bool filesAtOuterRing = false)
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        return new(Iso9660ImageWriter.PlanSources(sources, volumeSectors, volumeLabel,
             filesAtOuterRing: filesAtOuterRing));
     }
 
@@ -70,8 +81,11 @@ public static class HybridIsoImageWriter
         string sourceFullPath = plan.SourceDirectory;
         uint volumeSectors = plan.VolumeSectors;
         string outputFullPath = Path.GetFullPath(outputPath);
-        if (Iso9660ImageWriter.IsWithinDirectory(outputFullPath, sourceFullPath))
-            throw new ArgumentException("--iso-output must be outside --data-dir so the generated image cannot include itself.");
+        foreach (string sourceDirectory in plan.SourceDirectories)
+        {
+            if (Iso9660ImageWriter.IsWithinDirectory(outputFullPath, sourceDirectory))
+                throw new ArgumentException("--iso-output must be outside --data-dir so the generated image cannot include itself.");
+        }
         string outputDirectory = Path.GetDirectoryName(outputFullPath)
             ?? throw new ArgumentException("ISO output path has no parent directory.", nameof(outputPath));
         Directory.CreateDirectory(outputDirectory);

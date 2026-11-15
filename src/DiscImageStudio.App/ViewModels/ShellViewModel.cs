@@ -1318,6 +1318,16 @@ public partial class ShellViewModel : ObservableObject
         }
     }
 
+    /// <summary>Marshals a short state update onto the UI thread. Page-load probes resume on
+    /// the pool when the host has no synchronisation context, and bound collections must not be
+    /// replaced from there.</summary>
+    internal void OnUiThread(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (_dispatcher.CheckAccess()) action();
+        else _dispatcher.Invoke(action);
+    }
+
     internal void SetBusy(bool busy)
     {
         if (_isBusy == busy)

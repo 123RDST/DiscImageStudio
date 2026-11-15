@@ -14,9 +14,10 @@ internal sealed class ArchimedeanSpiral(DvdTrackGeometry geometry)
     internal double TrackPitchMm => geometry.TrackPitchMm;
     internal double TotalAngleRadians => geometry.TotalAngleRadians;
     internal static ArchimedeanSpiral Create(double innerRadiusMm, double outerRadiusMm,
-        double trackLengthMm, double pitchLinear = 0, double pitchQuadratic = 0, double pitchCubic = 0)
+        double trackLengthMm, double pitchLinear = 0, double pitchQuadratic = 0, double pitchCubic = 0,
+        AngularResidualTable? angularResidual = null)
         => new(DvdTrackGeometry.Create(innerRadiusMm, outerRadiusMm, trackLengthMm,
-            pitchLinear, pitchQuadratic, pitchCubic));
+            pitchLinear, pitchQuadratic, pitchCubic, angularResidual));
     internal double RadiusAtArcLength(double arcLengthMm) => geometry.RadiusAtArcLength(arcLengthMm);
     internal double RadiusAtArcLengthFast(double arcLengthMm) => geometry.RadiusAtArcLengthFast(arcLengthMm);
     internal double AngleAtArcLength(double arcLengthMm) => geometry.AngleAtArcLength(arcLengthMm);
@@ -64,6 +65,11 @@ internal sealed class ArchimedeanSpiral(DvdTrackGeometry geometry)
             tangentError = growth / inner + growth * growth / (2 * inner * inner);
             accelerationBound = 2 / inner;
         }
+        // A tabulated angular correction changes the sample point's tangential speed by
+        // r * dR/ds even though it leaves the spiral itself untouched. It is added here as an
+        // extra travel margin rather than inside the geometry's own bounds, so a slow, smooth
+        // correction can never push the sampler out of its reuse path.
+        tangentError += outer * (geometry.AngularResidual?.MaxSlopePerMm(outer - inner) ?? 0);
         return double.IsFinite(positionMargin) && positionMargin < .01
             && double.IsFinite(tangentError) && tangentError >= 0
             && double.IsFinite(accelerationBound) && accelerationBound > 0;

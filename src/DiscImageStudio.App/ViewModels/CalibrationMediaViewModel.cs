@@ -15,7 +15,15 @@ public partial class CalibrationViewModel
     public bool HasRecorderChoice => CapacityRecorders.Count > 1;
     public IAsyncRelayCommand ReadDiscSectorsCommand { get; private set; } = null!;
 
-    partial void OnSelectedCapacityRecorderChanged(OpticalBurnDevice? value) => CapacityStatus = string.Empty;
+    partial void OnSelectedCapacityRecorderChanged(OpticalBurnDevice? value)
+    {
+        CapacityStatus = string.Empty;
+        // A different drive has not been asked about its tray yet.
+        TimingDiscPresent = null;
+        OnPropertyChanged(nameof(TimingDriveState));
+        OnPropertyChanged(nameof(HasTimingDrive));
+        StartTimingCalibrationCommand?.NotifyCanExecuteChanged();
+    }
 
     private void InitializeCapacityCommands() =>
         ReadDiscSectorsCommand = new AsyncRelayCommand(ReadDiscSectorsAsync, () => !IsBusy);

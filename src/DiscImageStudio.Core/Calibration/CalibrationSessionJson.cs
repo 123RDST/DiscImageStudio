@@ -143,7 +143,7 @@ public static class CalibrationSessionJson
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() },
+        Converters = { new JsonStringEnumConverter(), new AngularResidualTableJsonConverter() },
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 

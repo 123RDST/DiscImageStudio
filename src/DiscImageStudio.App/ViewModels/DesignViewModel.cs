@@ -41,6 +41,11 @@ public partial class DesignViewModel : ObservableObject
     private bool _dataRegionRunning;
     private bool _dataRegionPending;
 
+    /// <summary>True once a plan has been produced for the current inputs (a rejected or
+    /// empty plan counts). The snapshot CLI waits for it: the guide lives behind a debounce
+    /// and a worker hop, so a capture taken right after the window opens has no ring yet.</summary>
+    internal bool IsDataRegionPlanned { get; private set; }
+
     public DesignViewModel(ShellViewModel shell, DiscParametersState state, Dispatcher dispatcher)
     {
         _shell = shell;
@@ -72,6 +77,7 @@ public partial class DesignViewModel : ObservableObject
         Tone = new ToneViewModel(shell, state, this);
         Music = new CdMusicViewModel(shell, state, this);
         RefreshDataRegionText();
+        ConnectDataSources();
     }
 
     /// <summary>The right rail's tone module: its preview projects the same composite this
@@ -140,8 +146,6 @@ public partial class DesignViewModel : ObservableObject
 
     [ObservableProperty]
     private string _dataRegionOverflowText = string.Empty;
-
-    public RelayCommand BrowseDataCommand => _shell.Export.BrowseDataCommand;
 
     public ObservableCollection<DesignLayerViewModel> Layers { get; } = [];
 
@@ -421,7 +425,12 @@ public partial class DesignViewModel : ObservableObject
         OnPropertyChanged(nameof(IsBluRay));
         OnPropertyChanged(nameof(FamilyLabel));
         OnPropertyChanged(nameof(CanvasOuterRadiusMm));
-        // The previous family's rings describe a different disc: drop them before the new
+        OnPropertyChanged(nameof(CurrentDataSources));
+        OnPropertyChanged(nameof(HasDataSources));
+        OnPropertyChanged(nameof(HasNoDataSources));
+        OnPropertyChanged(nameof(AutoReadme));
+        // The open family brings its own list: re-arm the watchers before the new plan lands.
+        RefreshDataSourceWatchers();
         // plan lands, then plan immediately because every input just changed.
         DataRegions = null;
         DataRegionOverflow = false;
@@ -494,6 +503,9 @@ public partial class DesignViewModel : ObservableObject
     /// inputs only: picture edits never retrigger the guide.</summary>
     private void ScheduleDataRegion()
     {
+        // The plan on screen describes the inputs as they were before this edit; a waiter
+        // (the snapshot CLI) must not treat it as the answer for the new inputs.
+        IsDataRegionPlanned = false;
         _dataRegionTimer.Stop();
         _dataRegionTimer.Start();
     }
@@ -505,6 +517,10 @@ public partial class DesignViewModel : ObservableObject
     private void RecomputeDataRegion()
     {
         _dataRegionRevision++;
+        // The flag describes the latest inputs, so a queued plan must clear it: a snapshot
+        // taken while the first (empty) scan is done but the loaded sources are not would
+        // otherwise capture a page with no guide.
+        IsDataRegionPlanned = false;
         if (_dataRegionRunning)
         {
             _dataRegionPending = true;
@@ -580,6 +596,7 @@ public partial class DesignViewModel : ObservableObject
                         layout.PictureInnerRadiusMm, layout.PictureOuterRadiusMm)
                     : null;
                 CdExtraPlan = extraPlan;
+                IsDataRegionPlanned = true;
                 CanvasChanged?.Invoke();
             }
             while (_dataRegionPending);
@@ -594,13 +611,14 @@ public partial class DesignViewModel : ObservableObject
     /// touches the parameter state.</summary>
     private DataRegionInputs CaptureDataRegionInputs()
     {
-        string directory, label, totalText, usableText, innerText, outerText;
+        IReadOnlyList<string> sources;
+        string label, totalText, usableText, innerText, outerText;
         string pitchLinear, pitchQuadratic, pitchCubic;
         bool filesAtOuterRing;
         switch (Family)
         {
             case OpticalDiscFamily.Dvd:
-                directory = _state.DvdDataDirectory;
+                sources = _state.DvdDataSources.ToArray();
                 label = _state.DvdVolumeLabel;
                 totalText = _state.DvdTotalSectors;
                 usableText = _state.DvdUsableSectors;
@@ -612,7 +630,7 @@ public partial class DesignViewModel : ObservableObject
                 filesAtOuterRing = _state.DvdFilesAtOuterRing;
                 break;
             case OpticalDiscFamily.BluRay:
-                directory = _state.BdDataDirectory;
+                sources = _state.BdDataSources.ToArray();
                 label = _state.BdVolumeLabel;
                 totalText = _state.BdTotalSectors;
                 usableText = _state.BdUsableSectors;
@@ -624,7 +642,7 @@ public partial class DesignViewModel : ObservableObject
                 filesAtOuterRing = _state.BdFilesAtOuterRing;
                 break;
             default:
-                directory = _state.CdDataDirectory;
+                sources = _state.CdDataSources.ToArray();
                 label = _state.CdVolumeLabel;
                 totalText = _state.CdSectors;
                 usableText = _state.CdUsableSectors;
@@ -643,18 +661,17 @@ public partial class DesignViewModel : ObservableObject
             OpticalDiscFamily.BluRay => ("蓝光内半径", "蓝光外半径"),
             _ => ("内半径", "外半径"),
         };
-        string directoryPath = directory.Trim();
         long totalSectors = ParameterParser.ParsePositiveLong(totalText, L.T("总扇区数"));
         return new DataRegionInputs(
             Family,
-            directoryPath,
+            sources,
             string.IsNullOrWhiteSpace(label) ? Family switch
             {
                 OpticalDiscFamily.Dvd => "DISC_IMAGE",
                 OpticalDiscFamily.BluRay => "BD_IMAGE",
                 _ => "CD_IMAGE",
             } : label.Trim(),
-            FilesAtOuterRing: directoryPath.Length > 0 && filesAtOuterRing,
+            FilesAtOuterRing: sources.Count > 0 && filesAtOuterRing,
             totalSectors,
             DiscParametersState.ParseUsableSectors(Family, totalSectors, usableText),
             ParameterParser.ParsePositiveDouble(innerText, L.T(innerPrompt)),

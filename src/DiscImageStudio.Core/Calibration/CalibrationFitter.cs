@@ -5,15 +5,25 @@ public sealed record CalibrationObservation(
 
 // FitDvdPitch is retained as the serialized/API name for existing calibration
 // sessions. It enables cubic-pitch fitting for CD, DVD and Blu-ray alike.
+//
+// LockRadii pins both radii to SearchCenter and searches nothing but rotation.
+// It exists because one DVD turn is only 0.73 um, so phase moves by roughly
+// 2*pi/pitch = 8560 rad per millimetre of radius: a two-nanometre radius nudge
+// hides a whole degree of angular error. With the radii free, the radius pair
+// (and the pitch coefficients) swallow any smooth angular defect, which is
+// exactly the defect a radial line shows. Locking them leaves the residual curve
+// as a direct reading of the angular error instead of a leftover.
 public sealed record CalibrationFitOptions(
     CalibrationParameters? SearchCenter = null, double RadiusRangeMm = 0.02,
     double HuberDeltaMm = 0.8, int MaxCandidates = 8,
     bool FitDvdPitch = true, double PitchCoefficientRange = 0.05,
-    bool AdaptiveRobustScale = false, bool? AutoRange = null)
+    bool AdaptiveRobustScale = false, bool? AutoRange = null,
+    bool LockRadii = false)
 {
     public void Validate(CalibrationTarget target)
     {
-        if (!double.IsFinite(RadiusRangeMm) || RadiusRangeMm is <= 0 or > 5
+        // A locked fit ignores RadiusRangeMm, so it is allowed to carry the neutral zero.
+        if (!double.IsFinite(RadiusRangeMm) || RadiusRangeMm is < 0 or > 5
             || !double.IsFinite(HuberDeltaMm) || HuberDeltaMm is <= 0 or > 10
             || MaxCandidates is < 1 or > 20
             || !double.IsFinite(PitchCoefficientRange) || PitchCoefficientRange is <= 0 or > 10)
@@ -42,6 +52,14 @@ public sealed record CalibrationFitResult(
     /// <summary>True when the best parameters sit on the searched radius box. The caller can
     /// re-run with a wider box instead of presenting a clamped answer as a measurement.</summary>
     public bool BoundaryLimited { get; init; }
+
+    /// <summary>
+    /// Curvature left over after the pitch fit, tabulated against normalized radius and stored
+    /// in the quantity it was measured in. Applying it to the preset rotates the data-to-surface
+    /// mapping at each radius instead of asking the three near-collinear pitch coefficients to
+    /// describe a shape they cannot reach.
+    /// </summary>
+    public AngularResidualTable AngularResidual { get; init; } = AngularResidualTable.Empty;
 }
 
 /// <summary>Fits one physical track model to all observed features; features are never warped independently.</summary>

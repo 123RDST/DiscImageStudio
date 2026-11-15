@@ -832,8 +832,8 @@ public partial class LivePreviewViewModel : ObservableObject
         try
         {
             outputPath = TempFiles.GetCacheFilePath($"cd-live-warp-{revision}.png");
-            string dataDirectory = _state.CdDataDirectory.Trim();
-            string volumeLabel = dataDirectory.Length > 0
+            IReadOnlyList<string> dataSources = _state.CdDataSources.ToArray();
+            string volumeLabel = dataSources.Count > 0
                 ? _state.ResolveVolumeLabel(OpticalDiscFamily.CompactDisc)
                 : string.Empty;
             bool filesAtOuterRing = _state.CdFilesAtOuterRing;
@@ -846,8 +846,8 @@ public partial class LivePreviewViewModel : ObservableObject
                 cancellationToken.ThrowIfCancellationRequested();
                 if (music is not null)
                 {
-                    CdExtraPlan extra = CdExtraPlanner.Plan(generated, music,
-                        dataDirectory.Length == 0 ? null : dataDirectory, extraLabel, filesAtOuterRing,
+                    CdExtraPlan extra = CdExtraPlanner.PlanSources(generated, music,
+                        dataSources.Count == 0 ? null : dataSources, extraLabel, filesAtOuterRing,
                         cancellationToken: cancellationToken, musicAtOuterRing: musicAtOuterRing);
                     cancellationToken.ThrowIfCancellationRequested();
                     if (extra.IsValid && extra.Layout!.MusicAtOuterRing)
@@ -874,8 +874,8 @@ public partial class LivePreviewViewModel : ObservableObject
                         throw new InvalidOperationException(CdExtraPlanner.DescribeProblem(extra));
                 }
 
-                CdDataLayoutPlan? layout = dataDirectory.Length > 0
-                    ? CdDataImageGenerator.PrepareLayout(dataDirectory, generated, volumeLabel, filesAtOuterRing)
+                CdDataLayoutPlan? layout = dataSources.Count > 0
+                    ? CdDataImageGenerator.PrepareLayoutSources(dataSources, generated, volumeLabel, filesAtOuterRing)
                     : null;
                 cancellationToken.ThrowIfCancellationRequested();
                 if (layout is not null)
@@ -899,7 +899,7 @@ public partial class LivePreviewViewModel : ObservableObject
             }
 
             _pendingMusicRegionOverlay = musicBands;
-            PublishPreview(outputPath, imagePath, "预览 - CD", plan is not null && (!musicBands || dataDirectory.Length > 0));
+            PublishPreview(outputPath, imagePath, "预览 - CD", plan is not null && (!musicBands || dataSources.Count > 0));
             keepOutput = true;
             SetReadyStatus(() => L.F($"已实时更新 · 标定预览 · 灰度 {tone.Levels} 级")
                 + L.F($" · 抖动 {tone.DitherStrength * 100:0}% · {outputSize} px")
@@ -1257,11 +1257,11 @@ public partial class LivePreviewViewModel : ObservableObject
     /// sidecar range belongs to its finished ISO and must not override later edits.</summary>
     internal BluRayIsoPlan PrepareBluRayProjectionPlan(BluRayDiscParameters generated)
     {
-        string dataDirectory = _state.BdDataDirectory.Trim();
-        return BluRayIsoGenerator.PrepareDrawing(generated,
-            dataDirectory.Length == 0 ? null : dataDirectory,
+        IReadOnlyList<string> dataSources = _state.BdDataSources.ToArray();
+        return BluRayIsoGenerator.PrepareDrawingSources(generated,
+            dataSources.Count == 0 ? null : dataSources,
             _state.ResolveVolumeLabel(OpticalDiscFamily.BluRay),
-            filesAtOuterRing: dataDirectory.Length > 0 && _state.BdFilesAtOuterRing);
+            filesAtOuterRing: dataSources.Count > 0 && _state.BdFilesAtOuterRing);
     }
 
     private DvdStreamingOptions ReadDvdPreviewGeometry(bool calibration)
@@ -1576,11 +1576,11 @@ public partial class LivePreviewViewModel : ObservableObject
             ToneProfile tone = _state.DvdTone;
             uint drawingStart = 0;
             uint drawingSectors = checked((uint)_state.GetUsableSectors(OpticalDiscFamily.Dvd));
-            string dataDirectory = _state.DvdDataDirectory.Trim();
-            if (dataDirectory.Length > 0)
+            IReadOnlyList<string> dataSources = _state.DvdDataSources.ToArray();
+            if (dataSources.Count > 0)
             {
                 DvdStreamingOptions generated = ReadDvdPreviewGeometry(calibration: false);
-                filePlan = DvdStreamingGenerator.PrepareHybrid(dataDirectory, generated,
+                filePlan = DvdStreamingGenerator.PrepareHybridSources(dataSources, generated,
                     _state.ResolveVolumeLabel(OpticalDiscFamily.Dvd),
                     filesAtOuterRing: _state.DvdFilesAtOuterRing);
                 drawingStart = filePlan.DrawingStartLba;

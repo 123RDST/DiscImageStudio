@@ -96,10 +96,13 @@ public static partial class CalibrationCrossFitter
                 PitchCubic = target.Parameters.PitchCubic,
             };
         var original = new CalibrationGeometry(target.Parameters);
-        double lowerInner = Math.Max(0.1, center.InnerRadiusMm - options.RadiusRangeMm);
-        double upperInner = center.InnerRadiusMm + options.RadiusRangeMm;
-        double lowerOuter = Math.Max(lowerInner + 0.1, center.OuterRadiusMm - options.RadiusRangeMm);
-        double upperOuter = center.OuterRadiusMm + options.RadiusRangeMm;
+        // A locked fit keeps the radii exactly where the caller put them, so the residual
+        // curve is the angular error itself rather than the part the radii could not absorb.
+        bool locked = options.LockRadii;
+        double lowerInner = locked ? center.InnerRadiusMm : Math.Max(0.1, center.InnerRadiusMm - options.RadiusRangeMm);
+        double upperInner = locked ? center.InnerRadiusMm : center.InnerRadiusMm + options.RadiusRangeMm;
+        double lowerOuter = locked ? center.OuterRadiusMm : Math.Max(lowerInner + 0.1, center.OuterRadiusMm - options.RadiusRangeMm);
+        double upperOuter = locked ? center.OuterRadiusMm : center.OuterRadiusMm + options.RadiusRangeMm;
         int traceCount = data.Max(point => point.Trace) + 1;
 
         Solution Evaluate(double inner, double outer)
@@ -180,15 +183,17 @@ public static partial class CalibrationCrossFitter
 
         // An unwrapped trace has a smooth shape objective: do not enumerate wrapped
         // point correspondences. Multiple bounded starts still guard against poor initials.
+        // A locked fit has a single admissible point, so the grid would only re-evaluate it.
         int gridSize = options.RadiusRangeMm <= 0.05 ? 9 : 17;
         var seeds = new List<Solution> { Evaluate(center.InnerRadiusMm, center.OuterRadiusMm) };
-        for (int row = 0; row < gridSize; row++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            for (int column = 0; column < gridSize; column++)
-                seeds.Add(Evaluate(lowerInner + (upperInner - lowerInner) * row / (gridSize - 1),
-                    lowerOuter + (upperOuter - lowerOuter) * column / (gridSize - 1)));
-        }
+        if (!locked)
+            for (int row = 0; row < gridSize; row++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                for (int column = 0; column < gridSize; column++)
+                    seeds.Add(Evaluate(lowerInner + (upperInner - lowerInner) * row / (gridSize - 1),
+                        lowerOuter + (upperOuter - lowerOuter) * column / (gridSize - 1)));
+            }
         var solutions = new List<Solution>();
         // The analytical starts must reach exact refinement even when a coarse
         // grid ranks sixteen other approximate locations ahead of them.
@@ -206,7 +211,10 @@ public static partial class CalibrationCrossFitter
         if (solutions.Count == 0)
             return new(Failed("搜索范围内没有能覆盖全部观测点的有效正半径曲线延拓，请检查照片尺度、盘心或参数范围。"), []);
         Solution best = solutions[0];
-        bool boundaryLimited = OnBoundary(best, lowerInner, upperInner, lowerOuter, upperOuter, options.RadiusRangeMm);
+        // A locked box is a point by construction; calling that "clamped" would ask the caller
+        // to widen the very constraint they asked for.
+        bool boundaryLimited = !locked
+            && OnBoundary(best, lowerInner, upperInner, lowerOuter, upperOuter, options.RadiusRangeMm);
         if (target.Parameters.Kind == CalibrationDiscKind.BluRay)
         {
             var bestParameters = center with { InnerRadiusMm = best.Inner, OuterRadiusMm = best.Outer };
@@ -221,7 +229,9 @@ public static partial class CalibrationCrossFitter
         if (best.Rms > delta * 2) warnings.Add("曲线偏差较大，请检查照片矫正、点位和是否始终沿同一条线标点。");
         if (boundaryLimited)
             warnings.Add("最佳结果靠近搜索边界，建议扩大搜索范围并补充曲线点复核。");
-        if (ParameterCorrelation(best, data, Evaluate) > 0.998)
+        // With the radii pinned there is no pair of parameters to be correlated, so the
+        // degeneracy notice would only repeat back the constraint the caller already chose.
+        if (!locked && ParameterCorrelation(best, data, Evaluate) > 0.998)
             warnings.Add("当前曲线对两个半径的约束较相似，暂不能仅凭低残差判断参数唯一；请扩大径向覆盖并检查点位精度。");
         if (solutions.Skip(1).Any(solution => solution.Cost <= best.Cost + Math.Max(0.005, best.Cost * 0.25)
             && (Math.Abs(solution.Inner - best.Inner) > 0.0002 || Math.Abs(solution.Outer - best.Outer) > 0.0002)))
@@ -239,7 +249,13 @@ public static partial class CalibrationCrossFitter
             return FitCubic(target, data, coverage, options, candidates, warnings, best.Residuals,
                 delta, boundaryLimited, cancellationToken);
         var fitResult = new CalibrationFitResult(true, candidates[0].Parameters, candidates[0].RotationRadians,
-            best.Rms, candidates, warnings) { BoundaryLimited = boundaryLimited };
+            best.Rms, candidates, warnings)
+        {
+            BoundaryLimited = boundaryLimited,
+            // Even a radii-only fit leaves measurable curvature behind; tabulate it so the caller
+            // can save it with the preset instead of only seeing it in the RMS.
+            AngularResidual = BuildResidualTable(candidates[0].Parameters, data, best.Residuals),
+        };
         return new(fitResult, best.Residuals);
     }
 

@@ -57,7 +57,8 @@ internal static class AppCubicTests
                 preset.PitchLinear, preset.PitchQuadratic, preset.PitchCubic);
             CalibrationTarget target = CalibrationTarget.Create(parameters);
             MethodInfo factory = typeof(CalibrationViewModel).GetMethod("DvdOptions", BindingFlags.NonPublic | BindingFlags.Static)!;
-            DvdStreamingOptions options = (DvdStreamingOptions)factory.Invoke(null, [target])!;
+            // Reflection does not honour optional parameters: pass the angular residual slot explicitly.
+            DvdStreamingOptions options = (DvdStreamingOptions)factory.Invoke(null, [target, null])!;
             Require(options.PitchLinear == parameters.PitchLinear && options.PitchQuadratic == parameters.PitchQuadratic
                 && options.PitchCubic == parameters.PitchCubic, "calibration output retains its captured pitch coefficients");
             state.DvdPitchLinear = "0";

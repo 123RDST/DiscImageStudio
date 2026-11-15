@@ -622,7 +622,8 @@ public static class FastDispersionImageWriter
                 trackLengthMm,
                 options.PitchLinear,
                 options.PitchQuadratic,
-                options.PitchCubic);
+                options.PitchCubic,
+                options.AngularResidual);
             _startAngleRadians = options.StartAngleDegrees * Math.PI / 180.0;
             _direction = options.Clockwise ? -1.0 : 1.0;
             _supportsReuseGeometry = _spiral.TryGetSampleReuseBounds(_startAngleRadians,

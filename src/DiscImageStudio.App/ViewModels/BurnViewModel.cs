@@ -61,7 +61,8 @@ public partial class BurnViewModel : ObservableObject
 
     public bool UseCalibrationPattern { get; }
     public Workspace PageWorkspace => UseCalibrationPattern ? Workspace.CalibrationBurn : Workspace.Burn;
-    public string PageTitle => UseCalibrationPattern ? L.T("Standalone.BurnTitle") : L.T("刻录");
+    public string PageTitle => IsTimingMeasurement ? L.T("Timing.BurnTitle")
+        : UseCalibrationPattern ? L.T("Standalone.BurnTitle") : L.T("刻录");
 
     [ObservableProperty]
     private string _sourceTitle = L.T("使用工程当前合成图与参数");
@@ -182,23 +183,27 @@ public partial class BurnViewModel : ObservableObject
     /// family while burning a target, otherwise the open project's family. Deriving it removes
     /// the old manual switch, which could be left on the wrong family and then failed at start
     /// with only a hint line to explain why.</summary>
-    public bool IsDvdBurn => UseCalibrationPattern
-        ? _shell.Calibration.Target?.Parameters.Kind == CalibrationDiscKind.Dvd
-        : _shell.CurrentProject?.IsDvd ?? false;
+    public bool IsDvdBurn => _timingMeasurementSource is { } timing
+        ? timing.MediaKind == OpticalBurnMediaKind.DvdData
+        : UseCalibrationPattern
+            ? _shell.Calibration.Target?.Parameters.Kind == CalibrationDiscKind.Dvd
+            : _shell.CurrentProject?.IsDvd ?? false;
 
-    public bool IsBluRayBurn => UseCalibrationPattern
-        ? _shell.Calibration.Target?.Parameters.Kind == CalibrationDiscKind.BluRay
-        : _shell.CurrentProject?.IsBluRay ?? false;
+    public bool IsBluRayBurn => _timingMeasurementSource is not null
+        ? false
+        : UseCalibrationPattern
+            ? _shell.Calibration.Target?.Parameters.Kind == CalibrationDiscKind.BluRay
+            : _shell.CurrentProject?.IsBluRay ?? false;
 
     /// <summary>Family chip in the page header; follows the material being written.</summary>
-    public string FamilyLabel => UseCalibrationPattern
+    public string FamilyLabel => _timingMeasurementSource?.FamilyLabel ?? (UseCalibrationPattern
         ? _shell.Calibration.Target?.Parameters.Kind switch
         {
             CalibrationDiscKind.Dvd => "DVD",
             CalibrationDiscKind.BluRay => "BD",
             _ => "CD",
         }
-        : _shell.CurrentProject?.FamilyLabel ?? "CD";
+        : _shell.CurrentProject?.FamilyLabel ?? "CD");
 
     /// <summary>A CD project in CD-Extra mode: music session plus picture session.</summary>
     public bool IsCdExtraBurn => !UseCalibrationPattern
@@ -221,12 +226,12 @@ public partial class BurnViewModel : ObservableObject
 
     partial void OnCdExtraTestWriteChanged(bool value) => UpdateSourceSummary();
 
-    private OpticalBurnMediaKind CurrentMediaKind => IsBluRayBurn
+    private OpticalBurnMediaKind CurrentMediaKind => _timingMeasurementSource?.MediaKind ?? (IsBluRayBurn
         ? OpticalBurnMediaKind.BluRayData
         : IsDvdBurn
             ? OpticalBurnMediaKind.DvdData
             : !UseCalibrationPattern && !string.IsNullOrWhiteSpace(_state.CdDataDirectory) && !_state.IsCdMusicOuter
-                ? OpticalBurnMediaKind.CdData : OpticalBurnMediaKind.CdAudio;
+                ? OpticalBurnMediaKind.CdData : OpticalBurnMediaKind.CdAudio);
 
     /// <summary>Device→speeds→confirm gating: not busy, device chosen, checkbox ticked.</summary>
     private bool CanStartBurn()
@@ -262,6 +267,8 @@ public partial class BurnViewModel : ObservableObject
 
     private void OnFamilyInputsChanged()
     {
+        OnPropertyChanged(nameof(IsTimingMeasurement));
+        OnPropertyChanged(nameof(PageTitle));
         OnPropertyChanged(nameof(IsDvdBurn));
         OnPropertyChanged(nameof(DvdReadCompatibility));
         OnPropertyChanged(nameof(IsBluRayBurn));
@@ -280,7 +287,16 @@ public partial class BurnViewModel : ObservableObject
     public void UpdateSourceSummary(bool refreshFiles)
     {
         string identity;
-        if (UseCalibrationPattern)
+        if (_timingMeasurementSource is { } timingSource)
+        {
+            // A timing disc is an ordinary closed data disc: the page shows what will be
+            // written instead of a calibration pattern or the drawing project.
+            SourceTitle = L.Format("Timing.BurnSourceTitle", timingSource.FamilyLabel);
+            SourceDetails = DescribeTimingMeasurement(timingSource.ContentLength)
+                + Environment.NewLine + L.T("Timing.BurnSourceHint");
+            identity = $"timing:{timingSource.Media}:{timingSource.Sectors}:{timingSource.Timestamp:O}";
+        }
+        else if (UseCalibrationPattern)
         {
             CalibrationTarget? target = _shell.Calibration.Target;
             if (target is null)
@@ -310,7 +326,7 @@ public partial class BurnViewModel : ObservableObject
         }
         else if (IsDvdBurn)
         {
-            string dataSuffix = string.IsNullOrWhiteSpace(_state.DvdDataDirectory)
+            string dataSuffix = _state.DvdDataSources.Count == 0
                 ? string.Empty
                 : _state.DvdFilesAtOuterRing ? L.T("；文件位于外圈，图案位于其内侧") : L.T("；文件位于内圈，图案位于其外侧");
             SourceTitle = _design.HasLayers
@@ -322,7 +338,7 @@ public partial class BurnViewModel : ObservableObject
             identity = string.Join("\u001f", "dvd", _design.CompositeRevision, _state.DvdTotalSectors, _state.DvdUsableSectors,
                 _state.DvdInnerRadius, _state.DvdOuterRadius,
                 _state.DvdPitchLinear, _state.DvdPitchQuadratic, _state.DvdPitchCubic,
-                _state.DvdDataDirectory, _state.DvdVolumeLabel, _state.DvdFilesAtOuterRing, _state.DvdReadCompatibility,
+                _state.DvdSourcesKey, _state.DvdVolumeLabel, _state.DvdFilesAtOuterRing, _state.DvdReadCompatibility,
                 _state.ToneDitherStrength, _state.ToneBrightness, _state.ToneSrgbLinearization);
         }
         else if (IsBluRayBurn)
@@ -581,7 +597,8 @@ public partial class BurnViewModel : ObservableObject
 
             bool dvd = IsDvdBurn;
             bool bluRay = IsBluRayBurn;
-            bool calibration = UseCalibrationPattern;
+            bool calibration = UseCalibrationPattern && _timingMeasurementSource is null;
+            TimingMeasurementSource? measurement = _timingMeasurementSource;
             int preparationRevision = _burnPreparationRevision;
             OpticalBurnMediaKind mediaKind = CurrentMediaKind;
             BurnWriteSpeedOption selectedWriteSpeed = SelectedSpeed ?? BurnWriteSpeedOption.Automatic;
@@ -591,7 +608,12 @@ public partial class BurnViewModel : ObservableObject
             OpticalMediaCapacity capacity = await _opticalDiscBurner.GetMediaCapacityAsync(device.Id, mediaKind);
             if (preparationRevision != _burnPreparationRevision || !ConfirmChecked)
                 return;
-            if (calibration)
+            if (measurement is not null)
+            {
+                request = measurement.CreateBurnRequest(device.Id, selectedWriteSpeed.Speed, capacity.WritableSectors);
+                contentDescription = DescribeTimingMeasurement(request.ContentLength);
+            }
+            else if (calibration)
             {
                 CalibrationTarget target = _shell.Calibration.Target
                     ?? throw new ArgumentException(L.T("请先在辅助标定工作区创建图案。"));
@@ -607,7 +629,8 @@ public partial class BurnViewModel : ObservableObject
                     throw new InvalidOperationException(L.T("标定图案已变化，请重新保存记录并确认刻录。"));
                 }
 
-                request = CreateCalibrationBurnRequest(target, interleave, device.Id, selectedWriteSpeed.Speed, capacity.WritableSectors);
+                request = CreateCalibrationBurnRequest(target, interleave, device.Id, selectedWriteSpeed.Speed,
+                    capacity.WritableSectors, _shell.Calibration.DiscAngularResidual);
                 string family = target.Parameters.Kind switch
                 {
                     CalibrationDiscKind.Dvd => "DVD",
@@ -627,12 +650,13 @@ public partial class BurnViewModel : ObservableObject
                     BluRayDiscParameters disc = ReadBluRayParameters();
                     double imageOuterRadiusMm = disc.OutputOuterRadiusMm;
                     disc = disc with { UsableSectors = checked((uint)StreamBurnCapacity.Resolve(disc.OutputSectors, capacity.WritableSectors, mediaKind)) };
-                    string dataDirectory = _state.BdDataDirectory.Trim();
-                    BluRayIsoPlan plan = BluRayIsoGenerator.PrepareDrawing(
+                    IReadOnlyList<string> dataSources = _state.BdDataSources.ToArray();
+                    DiscParametersState.RefreshAutoReadme(dataSources);
+                    BluRayIsoPlan plan = BluRayIsoGenerator.PrepareDrawingSources(
                         disc,
-                        dataDirectory.Length == 0 ? null : dataDirectory,
+                        dataSources.Count == 0 ? null : dataSources,
                         _state.ResolveVolumeLabel(OpticalDiscFamily.BluRay),
-                        filesAtOuterRing: dataDirectory.Length != 0 && _state.BdFilesAtOuterRing);
+                        filesAtOuterRing: dataSources.Count != 0 && _state.BdFilesAtOuterRing);
                     ToneProfile tone = _state.BluRayTone;
                     bool invert = _state.BdInvertMapping;
                     request = new OpticalBurnRequest(
@@ -663,11 +687,12 @@ public partial class BurnViewModel : ObservableObject
                         SourceImageOuterRadiusMm = options.OutputOuterRadiusMm,
                         UsableSectors = checked((uint)StreamBurnCapacity.Resolve(options.OutputSectors, capacity.WritableSectors, mediaKind)),
                     };
-                    string dataDirectory = _state.DvdDataDirectory.Trim();
-                    DvdHybridStreamingPlan? hybridPlan = dataDirectory.Length == 0
+                    IReadOnlyList<string> dataSources = _state.DvdDataSources.ToArray();
+                    DiscParametersState.RefreshAutoReadme(dataSources);
+                    DvdHybridStreamingPlan? hybridPlan = dataSources.Count == 0
                         ? null
-                        : DvdStreamingGenerator.PrepareHybrid(
-                            dataDirectory,
+                        : DvdStreamingGenerator.PrepareHybridSources(
+                            dataSources,
                             options,
                             _state.ResolveVolumeLabel(OpticalDiscFamily.Dvd),
                             filesAtOuterRing: _state.DvdFilesAtOuterRing);
@@ -713,14 +738,15 @@ public partial class BurnViewModel : ObservableObject
                     IReadOnlyList<string> music = _state.CdMusicTracks;
                     if (music.Count == 0)
                         throw new ArgumentException(L.T("CD-Extra 需要至少一首音乐：请在设计页添加 WAV 音乐，或切换回“整盘图片”。"));
-                    string dataDirectory = _state.CdDataDirectory.Trim();
+                    string[] dataSources = _state.CdDataSources.ToArray();
+                    DiscParametersState.RefreshAutoReadme(dataSources);
                     bool interleave = _state.CdInterleave;
                     ToneProfile tone = _state.Tone;
                     OpticalWriteSpeed? speed = selectedWriteSpeed.Speed;
                     (OpticalBurnRequest Request, CdExtraPlan Plan) prepared = await StaWorker.RunAsync(() =>
                     {
-                        CdExtraPlan outer = CdExtraPlanner.Plan(parameters, music,
-                            dataDirectory.Length == 0 ? null : dataDirectory, string.Empty, filesAtOuterRing: false,
+                        CdExtraPlan outer = CdExtraPlanner.PlanSources(parameters, music,
+                            dataSources.Length == 0 ? null : dataSources, string.Empty, filesAtOuterRing: false,
                             musicAtOuterRing: true);
                         return (CreateCdOuterMusicBurnRequest(compositePath, parameters, outer, interleave, tone,
                             device.Id, speed), outer);
@@ -744,7 +770,8 @@ public partial class BurnViewModel : ObservableObject
                     IReadOnlyList<string> music = _state.CdMusicTracks;
                     if (music.Count == 0)
                         throw new ArgumentException(L.T("CD-Extra 需要至少一首音乐：请在设计页添加 WAV 音乐，或切换回“整盘图片”。"));
-                    string dataDirectory = _state.CdDataDirectory.Trim();
+                    string[] dataSources = _state.CdDataSources.ToArray();
+                    DiscParametersState.RefreshAutoReadme(dataSources);
                     string volumeLabel = _state.ResolveVolumeLabel(OpticalDiscFamily.CompactDisc);
                     bool filesAtOuterRing = _state.CdFilesAtOuterRing;
                     ToneProfile tone = _state.Tone;
@@ -752,9 +779,9 @@ public partial class BurnViewModel : ObservableObject
                     OpticalWriteSpeed? speed = selectedWriteSpeed.Speed;
                     (CdExtraBurnRequest Request, CdExtraPlan Plan) prepared = await StaWorker.RunAsync(() =>
                     {
-                        CdExtraPlan extra = CdExtraPlanner.Plan(parameters, music,
-                            dataDirectory.Length == 0 ? null : dataDirectory, volumeLabel, filesAtOuterRing);
-                        return (CreateCdExtraBurnRequest(compositePath, parameters, extra, dataDirectory, volumeLabel,
+                        CdExtraPlan extra = CdExtraPlanner.PlanSources(parameters, music,
+                            dataSources.Length == 0 ? null : dataSources, volumeLabel, filesAtOuterRing);
+                        return (CreateCdExtraBurnRequest(compositePath, parameters, extra, dataSources, volumeLabel,
                             filesAtOuterRing, tone, device.Id, speed, testWrite), extra);
                     });
                     cdExtraRequest = prepared.Request;
@@ -771,10 +798,11 @@ public partial class BurnViewModel : ObservableObject
                         SourceImageOuterRadiusMm = parameters.SamplingImageOuterRadiusMm,
                         UsableSectors = StreamBurnCapacity.Resolve(parameters.OutputSectors, capacity.WritableSectors, mediaKind),
                     };
-                    request = CreateCdBurnRequest(
+                    DiscParametersState.RefreshAutoReadme(_state.CdDataSources);
+                    request = CreateCdBurnRequestSources(
                         compositePath,
                         parameters,
-                        _state.CdDataDirectory,
+                        _state.CdDataSources.ToArray(),
                         _state.ResolveVolumeLabel(OpticalDiscFamily.CompactDisc),
                         _state.CdFilesAtOuterRing,
                         _state.CdInterleave,
@@ -973,7 +1001,7 @@ public partial class BurnViewModel : ObservableObject
         string imagePath,
         CdDiscParameters parameters,
         CdExtraPlan plan,
-        string? dataDirectory,
+        IReadOnlyList<string>? dataSources,
         string volumeLabel,
         bool filesAtOuterRing,
         ToneProfile tone,
@@ -989,7 +1017,7 @@ public partial class BurnViewModel : ObservableObject
         }
 
         ToneProfile capturedTone = tone.Normalized();
-        string? folder = string.IsNullOrWhiteSpace(dataDirectory) ? null : dataDirectory.Trim();
+        IReadOnlyList<string>? sources = dataSources is { Count: > 0 } ? dataSources : null;
         string label = string.IsNullOrWhiteSpace(volumeLabel) ? "CD_IMAGE" : volumeLabel.Trim();
         CdMusicTrackInfo[] tracks = plan.Tracks.Select(track => track.Info!).ToArray();
         long[] sectors = tracks.Select(track => track.RecordedSectors).ToArray();
@@ -1007,8 +1035,8 @@ public partial class BurnViewModel : ObservableObject
                 CdExtraLayout layout = start.Simulated
                     ? predicted
                     : CdExtraLayout.Plan(parameters, sectors, start.NextWritableAddress, start.FreeBlocks);
-                CdDataLayoutPlan data = CdDataImageGenerator.PrepareSessionLayout(parameters,
-                    layout.Session2StartLba, layout.DataTrackSectors, folder, label, filesAtOuterRing);
+                CdDataLayoutPlan data = CdDataImageGenerator.PrepareSessionLayoutSources(parameters,
+                    layout.Session2StartLba, layout.DataTrackSectors, sources, label, filesAtOuterRing);
                 return new CdExtraDataContent(data.TrackSectors, (output, token) =>
                     CdDataImageGenerator.GenerateToStream(imagePath, output, parameters, data,
                         cancellationToken: token, tone: capturedTone));
@@ -1051,10 +1079,24 @@ public partial class BurnViewModel : ObservableObject
         ToneProfile tone,
         string deviceId,
         OpticalWriteSpeed? writeSpeed)
+        => CreateCdBurnRequestSources(imagePath, parameters,
+            string.IsNullOrWhiteSpace(dataDirectory) ? [] : [dataDirectory.Trim()],
+            volumeLabel, filesAtOuterRing, interleave, tone, deviceId, writeSpeed);
+
+    internal static OpticalBurnRequest CreateCdBurnRequestSources(
+        string imagePath,
+        CdDiscParameters parameters,
+        IReadOnlyList<string> dataSources,
+        string volumeLabel,
+        bool filesAtOuterRing,
+        bool interleave,
+        ToneProfile tone,
+        string deviceId,
+        OpticalWriteSpeed? writeSpeed)
     {
         parameters.Validate();
         ToneProfile capturedTone = tone.Normalized();
-        if (string.IsNullOrWhiteSpace(dataDirectory))
+        if (dataSources.Count == 0)
         {
             return new OpticalBurnRequest(deviceId, OpticalBurnMediaKind.CdAudio, parameters.TotalBytes,
                 (output, token) => CdTrackGenerator.GenerateToStream(imagePath, output, parameters,
@@ -1062,7 +1104,7 @@ public partial class BurnViewModel : ObservableObject
                     tone: capturedTone), writeSpeed);
         }
 
-        CdDataLayoutPlan plan = CdDataImageGenerator.PrepareLayout(dataDirectory.Trim(), parameters,
+        CdDataLayoutPlan plan = CdDataImageGenerator.PrepareLayoutSources(dataSources, parameters,
             string.IsNullOrWhiteSpace(volumeLabel) ? "CD_IMAGE" : volumeLabel.Trim(), filesAtOuterRing);
         return new OpticalBurnRequest(deviceId, OpticalBurnMediaKind.CdData, checked(parameters.OutputSectors * 2048),
             (output, token) => CdDataImageGenerator.GenerateToStream(imagePath, output, parameters, plan,
@@ -1076,7 +1118,8 @@ public partial class BurnViewModel : ObservableObject
         bool cdInterleave,
         string deviceId,
         OpticalWriteSpeed? writeSpeed,
-        long? writableSectors = null)
+        long? writableSectors = null,
+        AngularResidualTable? angularResidual = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         if (target.Parameters.Kind == CalibrationDiscKind.BluRay)
@@ -1098,7 +1141,7 @@ public partial class BurnViewModel : ObservableObject
 
         if (target.Parameters.Kind == CalibrationDiscKind.Dvd)
         {
-            DvdStreamingOptions options = CalibrationViewModel.DvdOptions(target);
+            DvdStreamingOptions options = CalibrationViewModel.DvdOptions(target, angularResidual);
             if (writableSectors.HasValue)
                 options = options with { UsableSectors = checked((uint)StreamBurnCapacity.Resolve(options.OutputSectors, writableSectors.Value, OpticalBurnMediaKind.DvdData)) };
             options.Validate();
@@ -1171,7 +1214,8 @@ public partial class BurnViewModel : ObservableObject
             PitchCubic: ParameterParser.ParseDouble(_state.DvdPitchCubic, L.T("DVD 轨距三次项")),
             UsableSectors: checked((uint)_state.GetUsableSectors(OpticalDiscFamily.Dvd)),
             Tone: _state.DvdTone,
-            ReadCompatibility: _state.DvdReadCompatibility);
+            ReadCompatibility: _state.DvdReadCompatibility,
+            AngularResidual: _state.DvdAngularResidual);
         options.Validate();
         return options;
     }

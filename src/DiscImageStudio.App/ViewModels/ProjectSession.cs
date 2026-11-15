@@ -1,6 +1,7 @@
 using DiscImageStudio.Localization;
 using System.Globalization;
 using DiscImageStudio.Core;
+using DiscImageStudio.Core.Calibration;
 using DiscImageStudio.Services;
 
 namespace DiscImageStudio.ViewModels;
@@ -49,8 +50,13 @@ internal static class ProjectSession
                 state.DvdActualPitchLinear = Format(geometry.PitchLinear);
                 state.DvdActualPitchQuadratic = Format(geometry.PitchQuadratic);
                 state.DvdActualPitchCubic = Format(geometry.PitchCubic);
+                // Measured angular correction travels with the project, so reopening it does not
+                // depend on the preset that produced the geometry still being installed.
+                state.DvdAngularResidual = geometry.AngularResidual is { Count: > 0 } angular
+                    ? AngularResidualTable.Create(angular)
+                    : null;
                 state.DvdOutputPath = outputs.OutputPath;
-                state.DvdDataDirectory = outputs.DataDirectory;
+                DiscParametersState.LoadSources(state.DvdDataSources, outputs.DataSources, outputs.DataDirectory);
                 state.DvdFilesAtOuterRing = outputs.FilesAtOuterRing;
                 state.DvdVolumeLabel = outputs.VolumeLabel;
                 state.DvdImagePath = string.Empty;
@@ -66,7 +72,7 @@ internal static class ProjectSession
                 state.BdPitchQuadratic = state.BdActualPitchQuadratic = Format(geometry.PitchQuadratic);
                 state.BdPitchCubic = state.BdActualPitchCubic = Format(geometry.PitchCubic);
                 state.BdOutputPath = outputs.OutputPath;
-                state.BdDataDirectory = outputs.DataDirectory;
+                DiscParametersState.LoadSources(state.BdDataSources, outputs.DataSources, outputs.DataDirectory);
                 state.BdFilesAtOuterRing = outputs.FilesAtOuterRing;
                 state.BdVolumeLabel = outputs.VolumeLabel;
                 state.BdInvertMapping = document.BluRay?.InvertMapping ?? false;
@@ -86,7 +92,7 @@ internal static class ProjectSession
                 state.CdPitchCubic = state.CdActualPitchCubic = Format(geometry.PitchCubic);
                 // The previous project's .wav/.raw choice must not resurface in this one.
                 state.ResetCdAudioFormat(outputs.OutputPath);
-                state.CdDataDirectory = outputs.DataDirectory;
+                DiscParametersState.LoadSources(state.CdDataSources, outputs.DataSources, outputs.DataDirectory);
                 state.CdFilesAtOuterRing = outputs.FilesAtOuterRing;
                 // Always assigned, so a project without CD-Extra does not inherit the
                 // previous project's music.
@@ -116,7 +122,10 @@ internal static class ProjectSession
                     ParameterParser.ParseDouble(state.DvdPitchLinear, L.T("DVD 相对一次项")),
                     ParameterParser.ParseDouble(state.DvdPitchQuadratic, L.T("DVD 相对二次项")),
                     ParameterParser.ParseDouble(state.DvdPitchCubic, L.T("DVD 相对三次项")),
-                    UsableSectors: state.GetUsableSectors(current.Family));
+                    UsableSectors: state.GetUsableSectors(current.Family),
+                    AngularResidual: state.DvdAngularResidual is { IsEmpty: false } table
+                        ? [.. table.Points]
+                        : null);
             case OpticalDiscFamily.BluRay:
                 return new ProjectGeometry(
                     ParameterParser.ParsePositiveDouble(state.BdInnerRadius, L.T("蓝光内半径")),
@@ -150,7 +159,8 @@ internal static class ProjectSession
                     state.DvdVolumeLabel,
                     Interleave: false,
                     FilesAtOuterRing: state.DvdFilesAtOuterRing,
-                    DvdReadCompatibility: state.DvdReadCompatibility);
+                    DvdReadCompatibility: state.DvdReadCompatibility,
+                    DataSources: state.DvdDataSources.ToArray());
             case OpticalDiscFamily.BluRay:
                 return new ProjectOutputs(
                     RequireOutput(state.BdOutputPath, L.T("蓝光 ISO 输出位置")),
@@ -158,7 +168,8 @@ internal static class ProjectSession
                     state.BdDataDirectory,
                     state.BdVolumeLabel,
                     Interleave: false,
-                    FilesAtOuterRing: state.BdFilesAtOuterRing);
+                    FilesAtOuterRing: state.BdFilesAtOuterRing,
+                    DataSources: state.BdDataSources.ToArray());
             default:
                 return new ProjectOutputs(
                     RequireOutput(state.CdOutputPath, state.IsCdMusicInner ? L.T("CD-Extra 图片区段输出位置")
@@ -167,7 +178,8 @@ internal static class ProjectSession
                     state.CdDataDirectory,
                     state.CdVolumeLabel,
                     state.CdInterleave,
-                    FilesAtOuterRing: state.CdFilesAtOuterRing);
+                    FilesAtOuterRing: state.CdFilesAtOuterRing,
+                    DataSources: state.CdDataSources.ToArray());
         }
     }
 

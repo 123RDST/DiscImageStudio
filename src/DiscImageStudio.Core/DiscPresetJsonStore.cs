@@ -47,7 +47,11 @@ public sealed record DvdDiscPresetDefinition(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? Contributor = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    uint? UsableSectors = null);
+    uint? UsableSectors = null,
+    // Measured angular correction, keyed by normalized radius. Null means the preset keeps the
+    // plain cubic spiral; an empty list is written back as null.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<AngularResidualPoint>? AngularResidual = null);
 
 public sealed record BluRayDiscPresetDefinition(
     string Id,
@@ -86,12 +90,13 @@ public sealed record DiscPresetJsonDocument(
 
 public static class DiscPresetJsonStore
 {
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     /// <summary>Schema 3 was written by a build that dropped <c>linearVelocityMmPerSecond</c>
     /// and <c>channelBitLengthNm</c> from the preset shape. Schema 2 predates the BD catalog.
     /// Both stay readable so a version bump cannot strand presets a user already saved.
-    /// Schema 4 adds <c>bluRayPresets</c>.</summary>
+    /// Schema 4 adds <c>bluRayPresets</c>, schema 5 adds the DVD <c>angularResidual</c> table.</summary>
+    private const int RadialSchemaVersion = 4;
     private const int InterimSchemaVersion = 3;
     private const int LegacySchemaVersion = 2;
 
@@ -275,15 +280,17 @@ public static class DiscPresetJsonStore
     public static void Validate(DiscPresetJsonDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        if (document.SchemaVersion is not (LegacySchemaVersion or InterimSchemaVersion or CurrentSchemaVersion))
+        if (document.SchemaVersion is not (LegacySchemaVersion or InterimSchemaVersion
+            or RadialSchemaVersion or CurrentSchemaVersion))
         {
             throw DiagnosticMessage.InvalidData(
-                $"不支持 schemaVersion={document.SchemaVersion}；当前支持 {LegacySchemaVersion}、{InterimSchemaVersion} 与 {CurrentSchemaVersion}。请把顶层 schemaVersion 改为受支持的值，或删除该文件让程序重新生成分层配置模板。");
+                $"不支持 schemaVersion={document.SchemaVersion}；当前支持 {LegacySchemaVersion}、{InterimSchemaVersion}、{RadialSchemaVersion} 与 {CurrentSchemaVersion}。请把顶层 schemaVersion 改为受支持的值，或删除该文件让程序重新生成分层配置模板。");
         }
 
-        if (document.SchemaVersion == CurrentSchemaVersion && document.BluRayPresets is null)
+        if (document.SchemaVersion >= RadialSchemaVersion && document.BluRayPresets is null)
         {
-            throw DiagnosticMessage.InvalidData($"schemaVersion 4 必须包含 bluRayPresets 列表。");
+            throw DiagnosticMessage.InvalidData(
+                $"schemaVersion {document.SchemaVersion} 必须包含 bluRayPresets 列表。");
         }
 
         if (document.CdPresets is null)
@@ -384,6 +391,7 @@ public static class DiscPresetJsonStore
             ValidateUsableSectors(preset.Id, preset.TotalSectors, preset.UsableSectors, 16);
             ValidateRadiusRange(preset.Id, preset.InnerRadiusMm, preset.OuterRadiusMm);
             ValidatePitch(preset.Id, preset.PitchLinear, preset.PitchQuadratic, preset.PitchCubic);
+            ValidateAngularResidual(preset.Id, preset.AngularResidual);
             ValidatePositiveFinite(preset.Id, "channelBitLengthNm", preset.ChannelBitLengthNm);
         }
 
@@ -501,6 +509,17 @@ public static class DiscPresetJsonStore
         {
             throw DiagnosticMessage.InvalidData(
                 $"{family} 预设 id '__manual__' 由界面的未保存状态保留，请换一个 id。");
+        }
+    }
+
+    private static void ValidateAngularResidual(string id, IReadOnlyList<AngularResidualPoint>? points)
+    {
+        if (points is null || points.Count == 0) return;
+        try { AngularResidualTable.Create(points); }
+        catch (ArgumentException exception)
+        {
+            throw DiagnosticMessage.InvalidData(
+                $"预设 '{id}' 的角度残差表无效：{DiagnosticMessage.Detail(exception)}", exception);
         }
     }
 

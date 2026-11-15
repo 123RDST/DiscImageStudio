@@ -77,11 +77,29 @@ internal static class CdExtraPlanner
         string? dataDirectory, string volumeLabel, bool filesAtOuterRing,
         long? measuredSession2StartLba = null, long? dataTrackSectorLimit = null,
         CancellationToken cancellationToken = default, bool musicAtOuterRing = false)
-        => Plan(parameters, Probe(trackPaths, cancellationToken), dataDirectory, volumeLabel, filesAtOuterRing,
+        => PlanSources(parameters, trackPaths, Clean(dataDirectory), volumeLabel, filesAtOuterRing,
+            measuredSession2StartLba, dataTrackSectorLimit, cancellationToken, musicAtOuterRing);
+
+    /// <summary>Same plan from mixed picks: the picture session carries every folder and
+    /// loose file instead of only the first one.</summary>
+    internal static CdExtraPlan PlanSources(CdDiscParameters parameters, IReadOnlyList<string> trackPaths,
+        IReadOnlyList<string>? dataSources, string volumeLabel, bool filesAtOuterRing,
+        long? measuredSession2StartLba = null, long? dataTrackSectorLimit = null,
+        CancellationToken cancellationToken = default, bool musicAtOuterRing = false)
+        => PlanSources(parameters, Probe(trackPaths, cancellationToken), dataSources, volumeLabel, filesAtOuterRing,
             measuredSession2StartLba, dataTrackSectorLimit, musicAtOuterRing);
+
+    private static IReadOnlyList<string> Clean(string? dataDirectory)
+        => string.IsNullOrWhiteSpace(dataDirectory) ? [] : [dataDirectory.Trim()];
 
     internal static CdExtraPlan Plan(CdDiscParameters parameters, IReadOnlyList<CdExtraTrackProbe> probes,
         string? dataDirectory, string volumeLabel, bool filesAtOuterRing,
+        long? measuredSession2StartLba = null, long? dataTrackSectorLimit = null, bool musicAtOuterRing = false)
+        => PlanSources(parameters, probes, Clean(dataDirectory), volumeLabel, filesAtOuterRing,
+            measuredSession2StartLba, dataTrackSectorLimit, musicAtOuterRing);
+
+    internal static CdExtraPlan PlanSources(CdDiscParameters parameters, IReadOnlyList<CdExtraTrackProbe> probes,
+        IReadOnlyList<string>? dataSources, string volumeLabel, bool filesAtOuterRing,
         long? measuredSession2StartLba = null, long? dataTrackSectorLimit = null, bool musicAtOuterRing = false)
     {
         ArgumentNullException.ThrowIfNull(parameters);
@@ -107,8 +125,8 @@ internal static class CdExtraPlanner
             }
 
             // The rings stay known next to the problem, as for disc files that do not fit.
-            return new CdExtraPlan(probes, layout, null, dataDirectory is null
-                ? CdExtraPlanProblem.None : CdExtraPlanProblem.FilesWithOuterMusic);
+            return new CdExtraPlan(probes, layout, null, dataSources is { Count: > 0 }
+                ? CdExtraPlanProblem.FilesWithOuterMusic : CdExtraPlanProblem.None);
         }
 
         try
@@ -124,14 +142,14 @@ internal static class CdExtraPlanner
 
         try
         {
-            CdDataLayoutPlan dataPlan = PrepareSession(parameters, layout, dataDirectory, volumeLabel, filesAtOuterRing);
+            CdDataLayoutPlan dataPlan = PrepareSession(parameters, layout, dataSources, volumeLabel, filesAtOuterRing);
             return new CdExtraPlan(probes, layout, dataPlan, CdExtraPlanProblem.None);
         }
         catch (Exception exception) when (IsCapacity(exception))
         {
             // When an empty filesystem still fits, the folder is what does not fit;
             // otherwise the music left too little room for the picture session.
-            return dataDirectory is not null && FitsWithoutFiles(parameters, layout, volumeLabel)
+            return dataSources is { Count: > 0 } && FitsWithoutFiles(parameters, layout, volumeLabel)
                 ? new CdExtraPlan(probes, layout, null, CdExtraPlanProblem.DataCapacity, exception)
                 : new CdExtraPlan(probes, null, null, CdExtraPlanProblem.Capacity, exception);
         }
@@ -166,9 +184,9 @@ internal static class CdExtraPlanner
     };
 
     private static CdDataLayoutPlan PrepareSession(CdDiscParameters parameters, CdExtraLayout layout,
-        string? dataDirectory, string volumeLabel, bool filesAtOuterRing)
-        => CdDataImageGenerator.PrepareSessionLayout(parameters, layout.Session2StartLba, layout.DataTrackSectors,
-            dataDirectory, volumeLabel, filesAtOuterRing);
+        IReadOnlyList<string>? dataSources, string volumeLabel, bool filesAtOuterRing)
+        => CdDataImageGenerator.PrepareSessionLayoutSources(parameters, layout.Session2StartLba,
+            layout.DataTrackSectors, dataSources, volumeLabel, filesAtOuterRing);
 
     private static bool FitsWithoutFiles(CdDiscParameters parameters, CdExtraLayout layout, string volumeLabel)
     {

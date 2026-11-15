@@ -1,5 +1,7 @@
 namespace DiscImageStudio.Dvd;
 
+using DiscImageStudio.Core;
+
 public sealed record DvdDiscPreset(
     string Id,
     string DisplayName,
@@ -14,7 +16,9 @@ public sealed record DvdDiscPreset(
     double PitchQuadratic = 0,
     double PitchCubic = 0,
     string? Contributor = null,
-    uint? UsableSectors = null)
+    uint? UsableSectors = null,
+    // Measured angular correction this disc needs, or null for the plain cubic spiral.
+    AngularResidualTable? AngularResidual = null)
 {
     public uint ResolvedUsableSectors => ResolveUsableSectors(TotalSectors, UsableSectors);
 

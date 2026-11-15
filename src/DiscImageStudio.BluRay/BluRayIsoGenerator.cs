@@ -85,8 +85,6 @@ public static class BluRayIsoGenerator
     public static BluRayIsoPlan PrepareDrawing(BluRayDiscParameters disc, string? dataDirectory = null,
         string volumeLabel = "BD_IMAGE", DateTimeOffset? timestamp = null, bool filesAtOuterRing = false)
     {
-        ArgumentNullException.ThrowIfNull(disc);
-        disc.Validate();
         if (filesAtOuterRing && string.IsNullOrWhiteSpace(dataDirectory))
             throw new ArgumentException("Outer-ring files require a data directory.", nameof(dataDirectory));
         return string.IsNullOrWhiteSpace(dataDirectory)
@@ -94,19 +92,43 @@ public static class BluRayIsoGenerator
             : Prepare(disc, dataDirectory, volumeLabel, timestamp, filesAtOuterRing);
     }
 
+    /// <summary>Drawing plan for mixed picks; no sources keeps the full-area drawing plan.</summary>
+    public static BluRayIsoPlan PrepareDrawingSources(BluRayDiscParameters disc,
+        IReadOnlyList<string>? dataSources, string volumeLabel = "BD_IMAGE",
+        DateTimeOffset? timestamp = null, bool filesAtOuterRing = false)
+    {
+        ArgumentNullException.ThrowIfNull(disc);
+        disc.Validate();
+        bool hasSources = dataSources is { Count: > 0 };
+        if (filesAtOuterRing && !hasSources)
+            throw new ArgumentException("Outer-ring files require a data directory.", nameof(dataSources));
+        return hasSources
+            ? PrepareSources(disc, dataSources, volumeLabel, timestamp, filesAtOuterRing)
+            : new BluRayIsoPlan(disc);
+    }
+
     // Explicit UDF preparation remains available for existing saved calibration
     // records whose captured drawing bounds exclude filesystem metadata.
     public static BluRayIsoPlan Prepare(BluRayDiscParameters disc, string? dataDirectory = null,
         string volumeLabel = "BD_IMAGE", DateTimeOffset? timestamp = null, bool filesAtOuterRing = false)
     {
+        if (dataDirectory is not null) ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+        return PrepareSources(disc, dataDirectory is null ? [] : [dataDirectory],
+            volumeLabel, timestamp, filesAtOuterRing);
+    }
+
+    /// <summary>Same drawing plan from mixed picks: one folder keeps its contents at the UDF
+    /// root, several folders each become a subdirectory, loose files land at the root.</summary>
+    public static BluRayIsoPlan PrepareSources(BluRayDiscParameters disc, IReadOnlyList<string>? dataSources,
+        string volumeLabel = "BD_IMAGE", DateTimeOffset? timestamp = null, bool filesAtOuterRing = false)
+    {
         ArgumentNullException.ThrowIfNull(disc);
         disc.Validate();
-        if (dataDirectory is not null) ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
-        UdfImageWriter.LayoutPlan filesystem = UdfImageWriter.Plan(dataDirectory, disc.OutputSectors,
+        UdfImageWriter.LayoutPlan filesystem = UdfImageWriter.PlanSources(dataSources, disc.OutputSectors,
             volumeLabel, timestamp, filesAtOuterRing);
         uint drawingStart = filesystem.DrawingStartLba;
         if (drawingStart >= filesystem.DrawingEndLbaExclusive)
-            throw new ArgumentException("UDF metadata and files must leave at least 32 sectors for drawing.", nameof(dataDirectory));
+            throw new ArgumentException("UDF metadata and files must leave at least 32 sectors for drawing.", nameof(dataSources));
         return new(disc, filesystem, drawingStart);
     }
 

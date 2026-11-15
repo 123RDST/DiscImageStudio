@@ -37,18 +37,19 @@ internal static class DesignDataRegionTests
             TestDvd(data);
             TestBluRay(data);
             TestCapacityFailures(root, data);
+            TestMixedSources(root, data);
         }
         finally
         {
             Directory.Delete(root, recursive: true);
         }
 
-        Console.WriteLine("design-data-region: passed (empty folder, CD/DVD/BD plans, outer-ring metadata split, usable capacity, overflow)");
+        Console.WriteLine("design-data-region: passed (empty folder, CD/DVD/BD plans, outer-ring metadata split, usable capacity, overflow, mixed folder and file picks)");
     }
 
     private static void TestEmptyFolder()
     {
-        DataRegionInputs inputs = new(OpticalDiscFamily.CompactDisc, string.Empty, "GUIDE", false,
+        DataRegionInputs inputs = new(OpticalDiscFamily.CompactDisc, [], "GUIDE", false,
             CdTotalSectors, CdUsableSectors, CdInnerMm, CdOuterMm, 0, 0, 0);
         Require(DataRegionPlanner.Compute(inputs) is null, "no data folder means no guide");
     }
@@ -175,7 +176,54 @@ internal static class DesignDataRegionTests
     private static IReadOnlyList<DesignViewModel.DataRegionMm> Compute(
         OpticalDiscFamily family, string directory, bool filesAtOuterRing,
         long totalSectors, long usableSectors, double innerMm, double outerMm)
-        => DataRegionPlanner.Compute(new DataRegionInputs(family, directory, "GUIDE", filesAtOuterRing,
+        => DataRegionPlanner.Compute(new DataRegionInputs(family,
+            directory.Length == 0 ? [] : [directory], "GUIDE", filesAtOuterRing,
+            totalSectors, usableSectors, innerMm, outerMm, 0, 0, 0))
+            ?? throw new InvalidOperationException("Expected the guide to return regions.");
+
+    /// <summary>The guide covers every picked source: a loose file next to a folder widens
+    /// the file annulus instead of being ignored, and dropping it narrows the guide again.</summary>
+    private static void TestMixedSources(string root, string data)
+    {
+        string loose = Path.Combine(root, "loose-payload.bin");
+        // 40 MiB moves the CD annulus by a few millimetres, well outside the tolerance.
+        using (FileStream stream = File.Create(loose)) stream.SetLength(40 * 1024 * 1024);
+        CdDiscParameters parameters = new(CdInnerMm, CdOuterMm, CdTotalSectors, UsableSectors: CdUsableSectors);
+
+        IReadOnlyList<DesignViewModel.DataRegionMm> folderOnly =
+            Compute(OpticalDiscFamily.CompactDisc, data, false, CdTotalSectors, CdUsableSectors, CdInnerMm, CdOuterMm);
+        IReadOnlyList<DesignViewModel.DataRegionMm> mixed =
+            ComputeSources(OpticalDiscFamily.CompactDisc, [data, loose], false,
+                CdTotalSectors, CdUsableSectors, CdInnerMm, CdOuterMm);
+        CdDataLayoutPlan mixedPlan = CdDataImageGenerator.PrepareLayoutSources([data, loose], parameters, "GUIDE", false);
+        Require(mixed.Count == 1, "mixed picks at the inner edge draw one merged annulus");
+        Require(mixed[0].OuterRadiusMm > folderOnly[0].OuterRadiusMm + 0.5,
+            "the loose file widens the guide beyond the folder alone");
+        Near(RadiusAt(parameters, mixedPlan.DataEndLbaExclusive), mixed[0].OuterRadiusMm,
+            "the mixed annulus ends with the last file sector");
+
+        IReadOnlyList<DesignViewModel.DataRegionMm> reordered =
+            ComputeSources(OpticalDiscFamily.CompactDisc, [loose, data], false,
+                CdTotalSectors, CdUsableSectors, CdInnerMm, CdOuterMm);
+        Near(mixed[0].OuterRadiusMm, reordered[0].OuterRadiusMm, "the pick order does not move the guide");
+
+        // The same list on a big disc: one folder plus a 1.2 GiB file is a quarter of the
+        // surface, which is what the design page draws as the wide part of the blue ring.
+        string big = Path.Combine(root, "big-payload.bin");
+        using (FileStream stream = File.Create(big)) stream.SetLength(1200L * 1024 * 1024);
+        const long dvdSectors = 2_298_496;
+        IReadOnlyList<DesignViewModel.DataRegionMm> dvdMixed =
+            ComputeSources(OpticalDiscFamily.Dvd, [data, big], false, dvdSectors, dvdSectors, 24, 58);
+        IReadOnlyList<DesignViewModel.DataRegionMm> dvdFolderOnly =
+            Compute(OpticalDiscFamily.Dvd, data, false, dvdSectors, dvdSectors, 24, 58);
+        Require(dvdMixed.Count >= 1 && dvdMixed[^1].OuterRadiusMm > dvdFolderOnly[^1].OuterRadiusMm + 5,
+            "on a DVD the loose file is most of the ring, not a rounding error");
+    }
+
+    private static IReadOnlyList<DesignViewModel.DataRegionMm> ComputeSources(
+        OpticalDiscFamily family, IReadOnlyList<string> sources, bool filesAtOuterRing,
+        long totalSectors, long usableSectors, double innerMm, double outerMm)
+        => DataRegionPlanner.Compute(new DataRegionInputs(family, sources, "GUIDE", filesAtOuterRing,
             totalSectors, usableSectors, innerMm, outerMm, 0, 0, 0))
             ?? throw new InvalidOperationException("Expected the guide to return regions.");
 

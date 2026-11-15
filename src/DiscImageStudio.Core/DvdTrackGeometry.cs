@@ -8,6 +8,13 @@ namespace DiscImageStudio.Core;
 /// The scale b is solved from the full physical track length. Zero coefficients
 /// retain the original Archimedean calculation, including its fast inverse.
 /// </summary>
+/// <remarks>
+/// An optional <see cref="AngularResidualTable"/> adds a measured angular correction on top of
+/// the spiral. It rotates the data-to-surface mapping at each radius without touching the radial
+/// model, so the three pitch coefficients keep their meaning and the correction can express
+/// local curvature the cubic cannot. Radius is unaffected: the correction is a rotation, and a
+/// rotation is exactly what a radial line's deviation measures.
+/// </remarks>
 public sealed class DvdTrackGeometry
 {
     private readonly double _linear;
@@ -16,6 +23,7 @@ public sealed class DvdTrackGeometry
     private readonly double _range;
     private readonly Segment[] _segments;
     private readonly double _lengthScale = 1;
+    private readonly AngularResidualTable? _residual;
     private readonly double _constantInnerRadiusSquared;
     private readonly double _constantGrowthSquared;
     private readonly double _constantTwiceGrowth;
@@ -28,7 +36,7 @@ public sealed class DvdTrackGeometry
         [0.3626837833783620, 0.3137066458778873, 0.2223810344533745, 0.1012285362903763];
 
     private DvdTrackGeometry(double innerRadiusMm, double outerRadiusMm, double trackLengthMm,
-        double linear, double quadratic, double cubic)
+        double linear, double quadratic, double cubic, AngularResidualTable? residual)
     {
         InnerRadiusMm = innerRadiusMm;
         OuterRadiusMm = outerRadiusMm;
@@ -37,6 +45,8 @@ public sealed class DvdTrackGeometry
         _linear = linear;
         _quadratic = quadratic;
         _cubic = cubic;
+        _residual = residual is { IsEmpty: false } ? residual : null;
+        _residual?.ValidateMonotonicity(_range, innerRadiusMm);
         IsConstantPitch = linear == 0 && quadratic == 0 && cubic == 0;
         _segments = [];
 
@@ -59,7 +69,7 @@ public sealed class DvdTrackGeometry
             _constantGrowthSquared = RadialGrowthPerRadianMm * RadialGrowthPerRadianMm;
             _constantTwiceGrowth = 2 * RadialGrowthPerRadianMm;
             _constantInnerPrimitive = Primitive(innerRadiusMm, RadialGrowthPerRadianMm);
-            TotalAngleRadians = _range / RadialGrowthPerRadianMm;
+            TotalAngleRadians = _range / RadialGrowthPerRadianMm + OuterAngleOffset;
             return;
         }
 
@@ -99,8 +109,14 @@ public sealed class DvdTrackGeometry
         }
         // Remove the final few rounding bits so logical progress ends exactly at ro.
         _lengthScale = trackLengthMm / arc;
-        TotalAngleRadians = angle;
+        TotalAngleRadians = angle + OuterAngleOffset;
     }
+
+    /// <summary>Measured angular correction applied on top of the spiral, when one is supplied.</summary>
+    public AngularResidualTable? AngularResidual => _residual;
+
+    /// <summary>Correction at the outer edge; the residual is anchored to zero at the inner edge.</summary>
+    private double OuterAngleOffset => _residual?.OuterValueRadians ?? 0;
 
     public double TrackLengthMm { get; }
     public double InnerRadiusMm { get; }
@@ -194,7 +210,8 @@ public sealed class DvdTrackGeometry
     }
 
     public static DvdTrackGeometry Create(double innerRadiusMm, double outerRadiusMm,
-        double trackLengthMm, double pitchLinear = 0, double pitchQuadratic = 0, double pitchCubic = 0)
+        double trackLengthMm, double pitchLinear = 0, double pitchQuadratic = 0, double pitchCubic = 0,
+        AngularResidualTable? angularResidual = null)
     {
         if (!double.IsFinite(innerRadiusMm) || innerRadiusMm <= 0)
             throw new ArgumentOutOfRangeException(nameof(innerRadiusMm), "Inner radius must be positive.");
@@ -205,7 +222,7 @@ public sealed class DvdTrackGeometry
                 "Track length must exceed the radial distance between the two radii.");
         ValidatePitchCoefficients(pitchLinear, pitchQuadratic, pitchCubic);
         return new DvdTrackGeometry(innerRadiusMm, outerRadiusMm, trackLengthMm,
-            pitchLinear, pitchQuadratic, pitchCubic);
+            pitchLinear, pitchQuadratic, pitchCubic, angularResidual);
     }
 
     /// <summary>Checks both edges and every stationary point, including interior minima.</summary>
@@ -264,13 +281,18 @@ public sealed class DvdTrackGeometry
 
     public double AngleAtArcLength(double arcLengthMm) => AngleAtRadius(RadiusAtArcLength(arcLengthMm));
 
-    /// <summary>Returns both coordinates with one table search in generation hot loops.</summary>
+    /// <summary>
+    /// Returns both coordinates with one table search in generation hot loops. The angular
+    /// residual, when present, is added here as well as in <see cref="AngleAtRadius"/> so the
+    /// forward writer and the design lookup agree to within a rounding bit.
+    /// </summary>
     public (double Radius, double Angle) AtArcLengthFast(double arcLengthMm)
     {
         if (IsConstantPitch)
         {
-            double radius = RadiusAtConstantArcLengthFast(arcLengthMm);
-            return (radius, (radius - InnerRadiusMm) / RadialGrowthPerRadianMm);
+            double constantRadius = RadiusAtConstantArcLengthFast(arcLengthMm);
+            return (constantRadius,
+                (constantRadius - InnerRadiusMm) / RadialGrowthPerRadianMm + OffsetAtRadius(constantRadius));
         }
         if (arcLengthMm <= 0) return (InnerRadiusMm, 0);
         if (arcLengthMm >= TrackLengthMm) return (OuterRadiusMm, TotalAngleRadians);
@@ -279,9 +301,10 @@ public sealed class DvdTrackGeometry
         Segment segment = _segments[FindSegment(unscaled, byAngle: false)];
         double t = InvertHermite(unscaled - segment.ArcStart, segment.ArcDelta,
             segment.Width * segment.ArcDerivativeStart, segment.Width * segment.ArcDerivativeEnd);
-        return (segment.RadiusStart + segment.Width * t,
-            segment.AngleStart + Hermite(t, segment.AngleDelta,
-                segment.Width * segment.AngleDerivativeStart, segment.Width * segment.AngleDerivativeEnd));
+        double radius = segment.RadiusStart + segment.Width * t;
+        return (radius, segment.AngleStart + Hermite(t, segment.AngleDelta,
+            segment.Width * segment.AngleDerivativeStart, segment.Width * segment.AngleDerivativeEnd)
+            + OffsetAtRadius(radius));
     }
 
     /// <summary>
@@ -294,7 +317,7 @@ public sealed class DvdTrackGeometry
     {
         // These strict comparisons also reject NaN and infinities without changing
         // the scalar path's handling of out-of-range values or its exceptions.
-        if (IsConstantPitch || !Vector256.IsHardwareAccelerated
+        if (IsConstantPitch || _residual is not null || !Vector256.IsHardwareAccelerated
             || !Vector256.GreaterThanAll(arcLengthsMm, Vector256<double>.Zero)
             || !Vector256.LessThanAll(arcLengthsMm, Vector256.Create(TrackLengthMm)))
             return AtArcLengthFastScalar(arcLengthsMm);
@@ -331,17 +354,26 @@ public sealed class DvdTrackGeometry
 
     public double AngleAtRadius(double radius)
     {
-        if (IsConstantPitch) return (radius - InnerRadiusMm) / RadialGrowthPerRadianMm;
+        if (IsConstantPitch) return (radius - InnerRadiusMm) / RadialGrowthPerRadianMm + OffsetAtRadius(radius);
         if (radius < InnerRadiusMm || radius > OuterRadiusMm)
         {
             if (!TryExtendedIntegral(radius, out Integral value)) throw new ArgumentOutOfRangeException(nameof(radius));
-            return value.Angle;
+            return value.Angle + OffsetAtRadius(radius);
         }
         Segment segment = _segments[FindRadiusSegment(radius)];
         double t = (radius - segment.RadiusStart) / segment.Width;
         return segment.AngleStart + Hermite(t, segment.AngleDelta,
-            segment.Width * segment.AngleDerivativeStart, segment.Width * segment.AngleDerivativeEnd);
+            segment.Width * segment.AngleDerivativeStart, segment.Width * segment.AngleDerivativeEnd)
+            + OffsetAtRadius(radius);
     }
+
+    /// <summary>
+    /// Measured angular correction at a radius, zero when no table is attached. The table is
+    /// keyed by normalized radius, so it stays valid for any inner/outer pair the caller chose.
+    /// </summary>
+    private double OffsetAtRadius(double radius) => _residual is null
+        ? 0
+        : _residual.Evaluate((radius - InnerRadiusMm) / _range);
 
     public double ArcLengthAtRadius(double radius)
     {
@@ -359,6 +391,24 @@ public sealed class DvdTrackGeometry
     }
 
     public double ArcLengthAtAngle(double angleRadians)
+    {
+        if (_residual is null) return ArcLengthAtAngleBase(angleRadians);
+        double angle = Math.Clamp(angleRadians, 0, TotalAngleRadians);
+        if (angle <= 0) return 0;
+        if (angle >= TotalAngleRadians) return TrackLengthMm;
+        // The tabulated correction makes the stored per-segment angle starts stale, so invert
+        // the corrected angle directly. The residual slope stays far below 1/r (validated at
+        // construction), hence the corrected angle is monotone in the track position.
+        double low = 0, high = TrackLengthMm;
+        for (int iteration = 0; iteration < 64; iteration++)
+        {
+            double middle = low + (high - low) / 2;
+            if (AngleAtArcLength(middle) < angle) low = middle; else high = middle;
+        }
+        return low + (high - low) / 2;
+    }
+
+    private double ArcLengthAtAngleBase(double angleRadians)
     {
         double angle = Math.Clamp(angleRadians, 0, TotalAngleRadians);
         if (IsConstantPitch)

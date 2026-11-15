@@ -11,7 +11,8 @@ public sealed record DvdImageRequest(
     DvdStreamingOptions Options,
     string? DataDirectory = null,
     string VolumeLabel = "DISC_IMAGE",
-    bool FilesAtOuterRing = false);
+    bool FilesAtOuterRing = false,
+    IReadOnlyList<string>? DataSources = null);
 
 /// <summary>Generates the normal drawing ISO and its compatible solve sidecar.
 /// CLI argument parsing and exit-code handling are deliberately outside this API.</summary>
@@ -67,13 +68,17 @@ public static class DvdImageGenerator
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OutputPath);
         ArgumentNullException.ThrowIfNull(request.Options);
         request.Options.Validate();
-        bool hybrid = !string.IsNullOrWhiteSpace(request.DataDirectory);
+        // DataSources is the current shape; DataDirectory is the single-folder form kept for
+        // callers (and saved CLI invocations) that predate mixed picks.
+        IReadOnlyList<string> dataSources = request.DataSources
+            ?? (string.IsNullOrWhiteSpace(request.DataDirectory) ? [] : [request.DataDirectory]);
+        bool hybrid = dataSources.Count > 0;
         if (!hybrid && request.FilesAtOuterRing)
             throw new ArgumentException("Outer-ring file placement requires a data directory.", nameof(request));
         string outputPath = Path.GetFullPath(request.OutputPath);
         progress?.Report(new("dvd", "prepare", "Preparing DVD image…"));
-        DvdHybridStreamingPlan? plan = hybrid ? DvdStreamingGenerator.PrepareHybrid(
-            request.DataDirectory!, request.Options, request.VolumeLabel, request.FilesAtOuterRing) : null;
+        DvdHybridStreamingPlan? plan = hybrid ? DvdStreamingGenerator.PrepareHybridSources(
+            dataSources, request.Options, request.VolumeLabel, request.FilesAtOuterRing) : null;
         cancellationToken.ThrowIfCancellationRequested();
         MultiBlockSolveOptions options = DvdStreamingGenerator.CreateSolveOptions(request.Options,
             plan?.DrawingStartLba ?? 0, plan?.DrawingSectors ?? request.Options.OutputSectors);

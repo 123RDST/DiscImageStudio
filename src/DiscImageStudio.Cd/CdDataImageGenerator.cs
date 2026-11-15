@@ -71,11 +71,22 @@ public static class CdDataImageGenerator
         string volumeLabel = "CD_IMAGE", bool filesAtOuterRing = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+        return PrepareLayoutSources([dataDirectory], parameters, volumeLabel, filesAtOuterRing);
+    }
+
+    /// <summary>Same layout from mixed picks: several folders each become a subdirectory,
+    /// loose files land at the root, and a single folder keeps its contents at the root.</summary>
+    public static CdDataLayoutPlan PrepareLayoutSources(IReadOnlyList<string> dataSources,
+        CdDiscParameters parameters, string volumeLabel = "CD_IMAGE", bool filesAtOuterRing = false)
+    {
+        ArgumentNullException.ThrowIfNull(dataSources);
+        if (dataSources.Count == 0)
+            throw new ArgumentException("At least one data source is required.", nameof(dataSources));
         parameters.Validate();
-        CdDataLayoutPlan plan = new(Iso9660ImageWriter.Plan(dataDirectory,
+        CdDataLayoutPlan plan = new(Iso9660ImageWriter.PlanSources(dataSources,
             checked((uint)parameters.OutputSectors), volumeLabel, filesAtOuterRing: filesAtOuterRing));
         if (plan.DrawingStartLba >= plan.DrawingEndLbaExclusive)
-            throw new ArgumentException("The filesystem leaves no CD sectors for drawing.", nameof(dataDirectory));
+            throw new ArgumentException("The filesystem leaves no CD sectors for drawing.", nameof(dataSources));
         return plan;
     }
 
@@ -90,6 +101,16 @@ public static class CdDataImageGenerator
         long trackSectors, string? dataDirectory = null, string volumeLabel = "CD_IMAGE",
         bool filesAtOuterRing = false, int postgapSectors = CdExtraLayout.DataPostgapSectors,
         DateTimeOffset? timestamp = null)
+        => PrepareSessionLayoutSources(parameters, startLba, trackSectors,
+            string.IsNullOrWhiteSpace(dataDirectory) ? [] : [dataDirectory.Trim()],
+            volumeLabel, filesAtOuterRing, postgapSectors, timestamp);
+
+    /// <summary>Session layout from mixed picks, so a CD-Extra picture session carries every
+    /// folder and loose file the user picked rather than only the first one.</summary>
+    public static CdDataLayoutPlan PrepareSessionLayoutSources(CdDiscParameters parameters, long startLba,
+        long trackSectors, IReadOnlyList<string>? dataSources, string volumeLabel = "CD_IMAGE",
+        bool filesAtOuterRing = false, int postgapSectors = CdExtraLayout.DataPostgapSectors,
+        DateTimeOffset? timestamp = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         parameters.Validate();
@@ -98,13 +119,13 @@ public static class CdDataImageGenerator
         if (trackSectors <= postgapSectors || checked(startLba + trackSectors) > parameters.OutputSectors)
             throw new ArgumentOutOfRangeException(nameof(trackSectors),
                 $"Session data track {startLba}+{trackSectors} does not fit the {parameters.OutputSectors} output sectors.");
-        string? folder = string.IsNullOrWhiteSpace(dataDirectory) ? null : dataDirectory.Trim();
-        Iso9660ImageWriter.LayoutPlan iso = Iso9660ImageWriter.Plan(folder,
+        IReadOnlyList<string>? sources = dataSources is { Count: > 0 } ? dataSources : null;
+        Iso9660ImageWriter.LayoutPlan iso = Iso9660ImageWriter.PlanSources(sources,
             checked((uint)(trackSectors - postgapSectors)), volumeLabel, timestamp,
-            filesAtOuterRing: folder is not null && filesAtOuterRing, lbaBias: checked((uint)startLba));
+            filesAtOuterRing: sources is not null && filesAtOuterRing, lbaBias: checked((uint)startLba));
         CdDataLayoutPlan plan = new(iso, startLba, trackSectors);
         if (plan.DrawingStartLba >= plan.DrawingEndLbaExclusive)
-            throw new ArgumentException("The filesystem leaves no CD sectors for drawing.", nameof(dataDirectory));
+            throw new ArgumentException("The filesystem leaves no CD sectors for drawing.", nameof(dataSources));
         return plan;
     }
 

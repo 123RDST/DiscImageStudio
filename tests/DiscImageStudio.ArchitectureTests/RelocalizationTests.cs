@@ -234,12 +234,14 @@ internal static class RelocalizationTests
                     && !calibration.SelectedCoarseSearchRange.Auto
                     && calibration.CoarseSearchRangeChoices.Contains(calibration.SelectedCoarseSearchRange),
                     "a saved custom search range is listed and selected");
-                Require(calibration.CoarseSearchRangeChoices.Count == 5,
+                // Five built-in entries (auto, ±0.02, ±0.1, ±0.5, locked radii); a saved manual
+                // box appends one more.
+                Require(calibration.CoarseSearchRangeChoices.Count == 6,
                     "the custom range adds exactly one choice");
 
                 Invoke(calibration, "InstallTarget",
                     [target, new CalibrationFitOptions(RadiusRangeMm: 0.4, AutoRange: false), true]);
-                Require(calibration.CoarseSearchRangeChoices.Count == 5
+                Require(calibration.CoarseSearchRangeChoices.Count == 6
                     && calibration.SelectedCoarseSearchRange.RadiusRangeMm == 0.4
                     && calibration.CoarseSearchRangeChoices.Contains(calibration.SelectedCoarseSearchRange),
                     "a later session replaces the previous custom range instead of accumulating it");
@@ -247,7 +249,7 @@ internal static class RelocalizationTests
                 Invoke(calibration, "InstallTarget",
                     [target, new CalibrationFitOptions(AutoRange: true), true]);
                 Require(ReferenceEquals(calibration.SelectedCoarseSearchRange, calibration.CoarseSearchRangeChoices[0])
-                    && calibration.CoarseSearchRangeChoices.Count == 4,
+                    && calibration.CoarseSearchRangeChoices.Count == 5,
                     "an auto session drops the stale custom range and selects the listed default");
             }
             finally

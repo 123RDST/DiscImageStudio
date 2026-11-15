@@ -1187,6 +1187,24 @@
     "es": "Quitar de la lista",
     "cs": "Odebrat ze seznamu"
   },
+  "Xaml.AdvancedStages": {
+    "zh-CN": "高级：粗标定与边界标定",
+    "en": "Advanced: coarse and boundary calibration",
+    "zh-TW": "進階：粗標定與邊界標定",
+    "ja": "詳細：粗校正と境界校正",
+    "tr": "Gelişmiş: kaba ve sınır kalibrasyonu",
+    "es": "Avanzado: calibración gruesa y de límites",
+    "cs": "Pokročilé: hrubá kalibrace a\u00A0kalibrace okrajů"
+  },
+  "Xaml.DeleteProjectFile": {
+    "zh-CN": "删除工程文件…",
+    "en": "Delete project file…",
+    "zh-TW": "刪除專案檔案…",
+    "ja": "プロジェクトファイルを削除…",
+    "tr": "Proje dosyasını sil…",
+    "es": "Eliminar archivo de proyecto…",
+    "cs": "Smazat soubor projektu…"
+  },
   "Xaml.Calibration2": {
     "zh-CN": "辅助标定",
     "en": "Calibration",
@@ -1357,6 +1375,15 @@
     "tr": "Geçerli parametrelerden hedef oluştur",
     "es": "Crear patrón con los parámetros",
     "cs": "Vytvořit vzor z parametrů"
+  },
+  "Xaml.ApplyAngularCorrectionToCalibrationDisc": {
+    "zh-CN": "标定盘带上角度修正（只看直线度）",
+    "en": "Write the angular correction onto this calibration disc (straightness check only)",
+    "zh-TW": "標定盤帶上角度修正（只看直線度）",
+    "ja": "角度補正をこの較正ディスクに含める（直線性の確認用）",
+    "tr": "Açı düzeltmesini bu kalibrasyon diskine yaz (yalnızca düzlük kontrolü)",
+    "es": "Incluir la corrección angular en este disco de calibración (solo para comprobar la rectitud)",
+    "cs": "Zapsat úhlovou korekci na tento kalibrační disk (jen pro kontrolu přímosti)"
   },
   "Xaml.OpenStreamingBurn": {
     "zh-CN": "前往流式刻录",
@@ -1717,6 +1744,51 @@
     "tr": "Diske eklenecek dosyalar",
     "es": "Archivos del disco",
     "cs": "Soubory na disku"
+  },
+  "Xaml.AddDiscFiles": {
+    "zh-CN": "添加文件",
+    "en": "Add files",
+    "zh-TW": "新增檔案"
+  },
+  "Xaml.AddDiscFolders": {
+    "zh-CN": "添加文件夹",
+    "en": "Add folders",
+    "zh-TW": "新增資料夾"
+  },
+  "Xaml.ClearDiscFiles": {
+    "zh-CN": "全部清除",
+    "en": "Clear all",
+    "zh-TW": "全部清除"
+  },
+  "Xaml.NoDiscFiles": {
+    "zh-CN": "未选择任何文件，整盘只绘图。",
+    "en": "Nothing selected: the whole disc is the drawing.",
+    "zh-TW": "未選擇任何檔案，整張光碟只繪圖。"
+  },
+  "Xaml.RemoveDiscFile": {
+    "zh-CN": "移除",
+    "en": "Remove",
+    "zh-TW": "移除"
+  },
+  "Xaml.MoveDiscFileUp": {
+    "zh-CN": "上移（更靠内圈）",
+    "en": "Move up (nearer the hub)",
+    "zh-TW": "上移（更靠內圈）"
+  },
+  "Xaml.MoveDiscFileDown": {
+    "zh-CN": "下移（更靠外圈）",
+    "en": "Move down (nearer the rim)",
+    "zh-TW": "下移（更靠外圈）"
+  },
+  "Xaml.AutoReadme": {
+    "zh-CN": "随盘附带 README.txt 署名",
+    "en": "Include a signed README.txt",
+    "zh-TW": "隨碟附帶 README.txt 簽名"
+  },
+  "Xaml.AutoReadmeToolTip": {
+    "zh-CN": "在列表末尾添加自动生成的 README.txt（署名 + 刻录时间），可像普通文件一样上移/下移/移除。纯图像盘有了它也能被系统秒识别。",
+    "en": "Appends a generated README.txt (signature + burn time) that moves and removes like any other pick. A picture-only disc also mounts instantly with it.",
+    "zh-TW": "在列表末尾加入自動產生的 README.txt（簽名 + 燒錄時間），可像一般檔案一樣上移/下移/移除。純圖像光碟有了它也能被系統秒識別。"
   },
   "Xaml.Folder": {
     "zh-CN": "文件夹",

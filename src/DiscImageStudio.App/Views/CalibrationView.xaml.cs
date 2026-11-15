@@ -26,6 +26,18 @@ public partial class CalibrationView : UserControl
             _calibration = calibration;
             calibration.PropertyChanged += OnCalibrationPropertyChanged;
             IsVisibleChanged += (_, _) => calibration.SetTargetPreviewVisible(IsVisible);
+            // The one-disc timing method is the recommended path. This is a UI default only:
+            // the view model keeps its historical coarse stage so saved sessions, CLI callers
+            // and headless tests behave exactly as before.
+            if (!calibration.TimingDefaultApplied)
+            {
+                calibration.TimingDefaultApplied = true;
+                if (calibration.SelectedDiscType != "BD" && !calibration.UseDriveTiming)
+                {
+                    calibration.UseDriveTiming = true;
+                    calibration.SelectFineModeCommand.Execute(null);
+                }
+            }
         }
         DataContext = viewModel;
     }

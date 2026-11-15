@@ -11,7 +11,10 @@ public static partial class CalibrationCrossFitter
     {
         SolveOutcome Baseline() => new(new CalibrationFitResult(true, baseline[0].Parameters,
             baseline[0].RotationRadians, baseline[0].RmsErrorMm, baseline, warnings)
-            { BoundaryLimited = boundaryLimited }, baselineResiduals);
+            {
+                BoundaryLimited = boundaryLimited,
+                AngularResidual = BuildResidualTable(baseline[0].Parameters, data, baselineResiduals),
+            }, baselineResiduals);
         // Three shape terms plus two radii and rotation need substantially more support
         // than the constant-pitch model. Repeated points on different arms do not add radii.
         int radialLevels = data.Select(d => Math.Round(d.Radius, 4)).Distinct().Count();
@@ -144,8 +147,32 @@ public static partial class CalibrationCrossFitter
             || Math.Min(best.Parameters.OuterRadiusMm - lowerOuter,
                 upperOuter - best.Parameters.OuterRadiusMm) < options.RadiusRangeMm * 0.005;
         var cubicResult = new CalibrationFitResult(true, best.Parameters, Normalize(best.Rotation),
-            best.Rms, candidates, warnings) { BoundaryLimited = cubicBoundary };
+            best.Rms, candidates, warnings)
+        {
+            BoundaryLimited = cubicBoundary,
+            AngularResidual = BuildResidualTable(best.Parameters, data, best.Residuals),
+        };
         return new(cubicResult, best.Residuals);
+    }
+
+    /// <summary>
+    /// Converts the fitted curve residuals back into a correction table. AngularScale maps one
+    /// radian of phase error to the residual unit the fit minimizes, so dividing by it keeps the
+    /// table in radians even if that scale is ever changed.
+    /// </summary>
+    private static AngularResidualTable BuildResidualTable(CalibrationParameters parameters,
+        Datum[] data, double[] residuals)
+    {
+        double range = parameters.OuterRadiusMm - parameters.InnerRadiusMm;
+        if (!(range > 0) || residuals.Length != data.Length) return AngularResidualTable.Empty;
+        List<AngularResidualMeasurement> measurements = new(data.Length);
+        for (int i = 0; i < data.Length; i++)
+        {
+            double normalized = Math.Clamp((data[i].Radius - parameters.InnerRadiusMm) / range, 0, 1);
+            measurements.Add(new AngularResidualMeasurement(normalized, residuals[i],
+                data[i].AngularScale, data[i].Weight));
+        }
+        return AngularResidualTable.FromPerpendicularResiduals(measurements);
     }
 
     private static CubicSolution RefineCubic(CubicSolution initial, Datum[] data, double delta,

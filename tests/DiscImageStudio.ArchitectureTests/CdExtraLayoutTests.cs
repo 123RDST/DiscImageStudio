@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using DiscImageStudio.Cd;
 using DiscImageStudio.Core;
 using DiscImageStudio.Iso;
+using DiscImageStudio.Services;
 
 /// <summary>CD-Extra planning and the picture session image: Track-at-Once addresses, music
 /// import, the absolute-LBA ISO volume, on-disc palette bytes at whole-disc coordinates,
@@ -21,10 +22,11 @@ internal static class CdExtraLayoutTests
             TestMusicFiles(directory);
             TestIsoBias(directory);
             TestSessionImage(directory);
+            TestMixedSourcesSession(directory);
             TestExportAndCli(directory);
         }
         finally { Directory.Delete(directory, recursive: true); }
-        Console.WriteLine("cd-extra-layout: passed (TAO addresses, capacity, area shares, WAV import incl. extensible PCM, pinning, folder order, absolute ISO extents with files, palette parity with whole-disc drawing, sidecar, read-back, CLI incl. -msinfo input)");
+        Console.WriteLine("cd-extra-layout: passed (TAO addresses, capacity, area shares, WAV import incl. extensible PCM, pinning, folder order, absolute ISO extents with files, mixed disc-file sources, palette parity with whole-disc drawing, sidecar, read-back, CLI incl. -msinfo input)");
     }
 
     private static void TestLayoutArithmetic()
@@ -360,6 +362,40 @@ internal static class CdExtraLayoutTests
                 Require(palette.Contains((byte)(track[sector * 2048 + offset] ^ mask[offset + 4])),
                     "descrambled drawing payload is a palette byte");
         }
+    }
+
+    /// <summary>The picture session takes the same mixed picks as a single-session data
+    /// disc: one folder keeps its contents at the volume root, anything else keeps each
+    /// folder as a directory of its own name and drops loose files at the root.</summary>
+    private static void TestMixedSourcesSession(string directory)
+    {
+        string root = Path.Combine(directory, "mixed-sources");
+        string album = Path.Combine(root, "album");
+        Directory.CreateDirectory(album);
+        File.WriteAllText(Path.Combine(album, "inside.txt"), "a");
+        string loose = Path.Combine(root, "readme.txt");
+        File.WriteAllText(loose, "b");
+        CdDiscParameters parameters = new(24.5, 56.8, 15_000, UsableSectors: 14_998);
+        CdExtraLayout layout = CdExtraLayout.Plan(parameters, [300]);
+
+        CdDataLayoutPlan flattened = CdDataImageGenerator.PrepareSessionLayoutSources(parameters,
+            layout.Session2StartLba, layout.DataTrackSectors, [album], "CD_EXTRA");
+        Require(flattened.FileCount == 1 && flattened.DirectoryCount == 1,
+            "one folder keeps its contents at the session root");
+
+        CdDataLayoutPlan mixed = CdDataImageGenerator.PrepareSessionLayoutSources(parameters,
+            layout.Session2StartLba, layout.DataTrackSectors, [album, loose], "CD_EXTRA");
+        Require(mixed.FileCount == 2 && mixed.DirectoryCount == 2,
+            "a folder plus a loose file both reach the session: the folder as a directory, the file at the root");
+        Require(mixed.VolumeStartLba == layout.Session2StartLba && mixed.TrackSectors == layout.DataTrackSectors,
+            "mixed picks change the file tree, not where the session starts");
+
+        string music = Path.Combine(root, "music.wav");
+        WriteWave(music, frames: 588 * 300, seed: 5);
+        CdExtraPlan plan = CdExtraPlanner.PlanSources(parameters, [music],
+            [album, loose], "CD_EXTRA", filesAtOuterRing: false);
+        Require(plan.IsValid && plan.DataPlan!.FileCount == 2,
+            "the CD-Extra plan carries every pick into the picture session");
     }
 
     private static void TestExportAndCli(string directory)

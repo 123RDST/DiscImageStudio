@@ -25,7 +25,9 @@ public sealed record DvdStreamingOptions(
     bool ReadCompatibility = false,
     uint? UsableSectors = null,
     double? SourceImageOuterRadiusMm = null,
-    string ReadCompatibilityMode = DvdReadCompatibilityModes.Current)
+    string ReadCompatibilityMode = DvdReadCompatibilityModes.Current,
+    // Measured angular correction carried by the preset; see AngularResidualTable.
+    AngularResidualTable? AngularResidual = null)
 {
     /// <summary>Physical channel-bit length of the DVD scheme; the UI no longer exposes it.</summary>
     public const double StandardChannelBitLengthNm = 133.3;
@@ -37,7 +39,7 @@ public sealed record DvdStreamingOptions(
     public double OutputOuterRadiusMm => OutputSectors == TotalSectors ? OuterRadiusMm
         : DvdTrackGeometry.Create(InnerRadiusMm, OuterRadiusMm,
             TotalSectors * (double)DvdEccBlockEncoder.ChannelBitsPerSector * ChannelBitLengthNm * 1e-6,
-            PitchLinear, PitchQuadratic, PitchCubic).RadiusAtArcLength(
+            PitchLinear, PitchQuadratic, PitchCubic, AngularResidual).RadiusAtArcLength(
                 OutputSectors * (double)DvdEccBlockEncoder.ChannelBitsPerSector * ChannelBitLengthNm * 1e-6);
 
     public void Validate()
@@ -79,6 +81,10 @@ public sealed record DvdStreamingOptions(
                 nameof(ChannelBitLengthNm),
                 "DVD channel-bit length must be positive.");
         }
+
+        // A correction steeper than the spiral's own angular rate would fold the track back on
+        // itself; reject it here rather than letting the sampler emit a mirrored region.
+        AngularResidual?.ValidateMonotonicity(OuterRadiusMm - InnerRadiusMm, InnerRadiusMm);
 
         if (!double.IsFinite(StartAngleDegrees))
         {
@@ -174,10 +180,24 @@ public static class DvdStreamingGenerator
         bool filesAtOuterRing = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+        return PrepareHybridSources([dataDirectory], options, volumeLabel, filesAtOuterRing);
+    }
+
+    /// <summary>Same plan, built from mixed picks: one folder keeps its contents at the root,
+    /// several folders each become a subdirectory, loose files land at the root.</summary>
+    public static DvdHybridStreamingPlan PrepareHybridSources(
+        IReadOnlyList<string> dataSources,
+        DvdStreamingOptions options,
+        string volumeLabel = "DVD_IMAGE",
+        bool filesAtOuterRing = false)
+    {
+        ArgumentNullException.ThrowIfNull(dataSources);
+        if (dataSources.Count == 0)
+            throw new ArgumentException("At least one data source is required.", nameof(dataSources));
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
-        HybridIsoImageWriter.LayoutPlan isoLayout = HybridIsoImageWriter.Plan(
-            dataDirectory,
+        HybridIsoImageWriter.LayoutPlan isoLayout = HybridIsoImageWriter.PlanSources(
+            dataSources,
             options.OutputSectors,
             volumeLabel,
             filesAtOuterRing);
@@ -188,7 +208,7 @@ public static class DvdStreamingGenerator
         {
             throw new ArgumentException(
                 "The filesystem leaves no complete ECC Block for drawing in the selected file layout.",
-                nameof(dataDirectory));
+                nameof(dataSources));
         }
 
         return new DvdHybridStreamingPlan(isoLayout, drawingStartLba, drawingEndLba);
@@ -405,7 +425,8 @@ public static class DvdStreamingGenerator
             Tone: options.Tone,
             UsableSectors: options.UsableSectors,
             ImageOuterRadiusMm: options.SourceImageOuterRadiusMm
-                ?? (options.UsableSectors.HasValue ? options.OutputOuterRadiusMm : null));
+                ?? (options.UsableSectors.HasValue ? options.OutputOuterRadiusMm : null),
+            AngularResidual: options.AngularResidual);
         return new MultiBlockSolveOptions(
             startLba,
             fillSectors,

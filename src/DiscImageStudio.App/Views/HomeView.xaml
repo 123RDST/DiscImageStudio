@@ -119,10 +119,10 @@
                             Command="{Binding ClearRecentsCommand}" />
                 </Grid>
                 <!-- Three mini tiles per row at any window width: UniformGrid stretches the
-                     tiles, the sleeve's 3*:1* template shrinks with them. Tag carries the
-                     remove command into the ContextMenu, which sits in a popup outside the
-                     visual tree: the menu item reaches it via PlacementTarget, and its own
-                     DataContext stays the tile. -->
+                     tiles, the sleeve's 3*:1* template shrinks with them. Tag carries the home
+                     view model into the ContextMenu, which sits in a popup outside the visual
+                     tree: the menu items reach it via PlacementTarget, and their own DataContext
+                     stays the tile. -->
                 <ItemsControl ItemsSource="{Binding Recents}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -132,7 +132,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <controls:RecentProjectCard Margin="4"
-                                                        Tag="{Binding DataContext.RemoveRecentCommand,
+                                                        Tag="{Binding DataContext,
                                                                   RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         Title="{Binding Title}"
                                                         FamilyLabel="{Binding FamilyLabel}"
@@ -146,7 +146,12 @@
                                 <controls:RecentProjectCard.ContextMenu>
                                     <ContextMenu>
                                         <MenuItem Header="{loc:Text Xaml.RemoveFromList}"
-                                                  Command="{Binding PlacementTarget.Tag,
+                                                  Command="{Binding PlacementTarget.Tag.RemoveRecentCommand,
+                                                            RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding}" />
+                                        <Separator />
+                                        <MenuItem Header="{loc:Text Xaml.DeleteProjectFile}"
+                                                  Command="{Binding PlacementTarget.Tag.DeleteRecentCommand,
                                                             RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                   CommandParameter="{Binding}" />
                                     </ContextMenu>

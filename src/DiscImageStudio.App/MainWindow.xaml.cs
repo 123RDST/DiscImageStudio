@@ -116,6 +116,10 @@ public partial class MainWindow : Window
     internal bool IsTonePreviewReady
         => !_shell.IsProjectOpen || !_shell.Design.HasLayers || _shell.Design.Tone.IsTonePreviewReady;
 
+    /// <summary>Snapshot hook: the data-region guide is planned behind a debounce and a
+    /// worker hop, so a capture waits for the first plan before it can show the blue ring.</summary>
+    internal bool IsDataRegionReady => !_shell.IsProjectOpen || _shell.Design.IsDataRegionPlanned;
+
     /// <summary>Snapshot hook: scrolls the workspace's outermost scroll surface so the CLI can
     /// capture the part of a long page that sits below the viewport.</summary>
     internal void ScrollWorkspace(double offset)

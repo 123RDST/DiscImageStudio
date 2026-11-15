@@ -63,7 +63,8 @@ internal static class UnifiedCommandRunner
                     settingsDialog,
                     FindOption(snapshotArguments, "settings-view"),
                     FindOption(snapshotArguments, "language"),
-                    FindOption(snapshotArguments, "drive-fixture"));
+                    FindOption(snapshotArguments, "drive-fixture"),
+                    HasOption(snapshotArguments, "wait-data-region"));
             }
 
             if (command == "burn-devices")

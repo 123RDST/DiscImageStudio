@@ -15,7 +15,11 @@ public sealed record ProjectGeometry(
     double PitchQuadratic = 0,
     double PitchCubic = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    long? UsableSectors = null);
+    long? UsableSectors = null,
+    // Angular correction measured by fine calibration, keyed by normalized radius. DVD only;
+    // null means the plain cubic spiral, which is what projects written before it carry.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<AngularResidualPoint>? AngularResidual = null);
 
 /// <summary>One design layer: an image placed relative to the disc centre. Translation is in
 /// millimetres (+x right, +y down on the canvas), rotation in degrees clockwise, and scale is
@@ -38,7 +42,10 @@ public sealed record ProjectOutputs(
     string VolumeLabel,
     bool Interleave,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool FilesAtOuterRing = false,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool DvdReadCompatibility = false);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool DvdReadCompatibility = false,
+    // Folders and loose files that travel with the disc. Older projects have no list and only
+    // DataDirectory; readers prefer this list when present and fall back to the single path.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? DataSources = null);
 
 /// <summary>Generation settings that exist only for BD-R: the 3T/6T mapping polarity.
 /// This is deliberately separate from <see cref="ToneProfile"/>: polarity selects which
@@ -134,9 +141,10 @@ public sealed record ProjectDocument(
 public static class ProjectJsonStore
 {
     public const int CurrentSchemaVersion = 2;
-    /// <summary>Written only for a project that carries a cdExtra block, so a build that does
-    /// not know the block reports an unsupported version instead of a malformed file; every
-    /// other project stays at <see cref="CurrentSchemaVersion"/> and opens in both.</summary>
+    /// <summary>Written for a project that carries a member a build without schema 3 cannot
+    /// know — the cdExtra block or the measured angular table — so such a build reports an
+    /// unsupported version instead of a malformed file; every other project stays at
+    /// <see cref="CurrentSchemaVersion"/> and opens in both.</summary>
     public const int CdExtraSchemaVersion = 3;
 
     /// <summary>The version a file with this content is written as, which is also the lowest
@@ -147,9 +155,10 @@ public static class ProjectJsonStore
     public static int RequiredSchemaVersion(ProjectDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        // The block is present in the file even while the mode is switched off, and builds
-        // without CD-Extra reject any member they do not know.
-        return document.CdExtra is null ? CurrentSchemaVersion : CdExtraSchemaVersion;
+        // Both members are present in the file when set, and builds without them reject any
+        // member they do not know.
+        return document.CdExtra is null && document.Geometry?.AngularResidual is null
+            ? CurrentSchemaVersion : CdExtraSchemaVersion;
     }
     private const int LegacySchemaVersion = 1;
     public const string FileExtension = ".discproj";
@@ -402,6 +411,23 @@ public static class ProjectJsonStore
         {
             throw DiagnosticMessage.InvalidData($"轨距系数无效：{DiagnosticMessage.Detail(exception)}", exception);
         }
+
+        if (geometry.AngularResidual is { Count: > 0 } angular)
+        {
+            if (!document.IsDvd)
+            {
+                throw DiagnosticMessage.InvalidData($"角度修正表只用于 DVD 工程。");
+            }
+
+            try
+            {
+                _ = AngularResidualTable.Create(angular);
+            }
+            catch (ArgumentException exception)
+            {
+                throw DiagnosticMessage.InvalidData($"角度修正表无效：{DiagnosticMessage.Detail(exception)}", exception);
+            }
+        }
     }
 
     private static void ValidateLayers(ProjectDocument document)
@@ -491,7 +517,7 @@ public static class ProjectJsonStore
             int required = RequiredSchemaVersion(document);
             if (required > CurrentSchemaVersion && document.SchemaVersion < required)
             {
-                throw DiagnosticMessage.InvalidData($"cdExtra 设置需要 schemaVersion 3。");
+                throw DiagnosticMessage.InvalidData($"CD-Extra 设置或角度修正表需要 schemaVersion 3。");
             }
 
             // Every file version is read as its current equivalent; saving chooses the

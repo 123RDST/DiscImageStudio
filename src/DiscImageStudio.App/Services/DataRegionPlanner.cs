@@ -12,7 +12,7 @@ namespace DiscImageStudio.Services;
 /// the folder scan can run on an STA worker without touching view-model fields.</summary>
 internal sealed record DataRegionInputs(
     OpticalDiscFamily Family,
-    string Directory,
+    IReadOnlyList<string> Sources,
     string VolumeLabel,
     bool FilesAtOuterRing,
     long TotalSectors,
@@ -54,7 +54,7 @@ internal static class DataRegionPlanner
 {
     internal static IReadOnlyList<DesignViewModel.DataRegionMm>? Compute(DataRegionInputs inputs)
     {
-        if (inputs.Directory.Length == 0)
+        if (inputs.Sources.Count == 0)
         {
             return null;
         }
@@ -83,11 +83,11 @@ internal static class DataRegionPlanner
         ArgumentNullException.ThrowIfNull(inputs.MusicTracks);
         CdDiscParameters parameters = inputs.CreateCdParameters();
         parameters.Validate();
-        CdExtraPlan plan = CdExtraPlanner.Plan(parameters, inputs.MusicTracks,
-            inputs.Directory.Length == 0 ? null : inputs.Directory, inputs.VolumeLabel,
+        CdExtraPlan plan = CdExtraPlanner.PlanSources(parameters, inputs.MusicTracks,
+            inputs.Sources.Count == 0 ? null : inputs.Sources, inputs.VolumeLabel,
             inputs.FilesAtOuterRing, cancellationToken: cancellationToken,
             musicAtOuterRing: inputs.MusicAtOuterRing);
-        if (!plan.IsValid || plan.DataPlan is null || inputs.Directory.Length == 0)
+        if (!plan.IsValid || plan.DataPlan is null || inputs.Sources.Count == 0)
             return (null, plan);
         CdDataLayoutPlan data = plan.DataPlan!;
         double Radius(uint lba) => parameters.RadiusFromByte((long)lba * CdDiscParameters.BytesPerSector);
@@ -101,8 +101,8 @@ internal static class DataRegionPlanner
     private static IReadOnlyList<DesignViewModel.DataRegionMm> ComputeCd(DataRegionInputs inputs)
     {
         CdDiscParameters parameters = inputs.CreateCdParameters();
-        CdDataLayoutPlan plan = CdDataImageGenerator.PrepareLayout(
-            inputs.Directory, parameters, inputs.VolumeLabel, inputs.FilesAtOuterRing);
+        CdDataLayoutPlan plan = CdDataImageGenerator.PrepareLayoutSources(
+            inputs.Sources, parameters, inputs.VolumeLabel, inputs.FilesAtOuterRing);
         return IsoDataRegions(parameters.InnerRadiusMm, parameters.OuterRadiusMm,
             plan.MetadataEndLbaExclusive, plan.FileDataStartLba, plan.DataEndLbaExclusive,
             FilesystemMetadataBudget.ReserveSectors(plan.FileCount),
@@ -119,8 +119,8 @@ internal static class DataRegionPlanner
             PitchQuadratic: inputs.PitchQuadratic,
             PitchCubic: inputs.PitchCubic,
             UsableSectors: checked((uint)inputs.UsableSectors));
-        DvdHybridStreamingPlan plan = DvdStreamingGenerator.PrepareHybrid(
-            inputs.Directory, options, inputs.VolumeLabel, inputs.FilesAtOuterRing);
+        DvdHybridStreamingPlan plan = DvdStreamingGenerator.PrepareHybridSources(
+            inputs.Sources, options, inputs.VolumeLabel, inputs.FilesAtOuterRing);
 
         // The solver maps sector positions over the physical track, not over the usable
         // capacity: unused writable sectors remain at the outer edge of the same spiral.
@@ -146,8 +146,8 @@ internal static class DataRegionPlanner
             PitchQuadratic: inputs.PitchQuadratic,
             PitchCubic: inputs.PitchCubic,
             UsableSectors: checked((uint)inputs.UsableSectors));
-        BluRayIsoPlan plan = BluRayIsoGenerator.PrepareDrawing(
-            disc, inputs.Directory, inputs.VolumeLabel,
+        BluRayIsoPlan plan = BluRayIsoGenerator.PrepareDrawingSources(
+            disc, inputs.Sources, inputs.VolumeLabel,
             filesAtOuterRing: inputs.FilesAtOuterRing);
 
         // UDF relocates the whole partition (metadata and file data together), so the

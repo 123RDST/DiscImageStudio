@@ -39,6 +39,8 @@ internal static class CalibrationStandaloneTests
 
         model.SelectedDiscType = "DVD";
         setup.SelectedDvdPreset = setup.DvdPresets.Single(p => p.Id == "dvd-5-80mm");
+        // The fine stage is the default now; this guard belongs to the advanced coarse stage.
+        model.SelectCoarseModeCommand.Execute(null);
         Require(!model.CreateTargetCommand.CanExecute(null), "mini DVD has insufficient space for the v13 angle sweep");
         model.SelectFineModeCommand.Execute(null);
         model.CreateTargetCommand.Execute(null);

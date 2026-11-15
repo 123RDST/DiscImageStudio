@@ -207,6 +207,8 @@ internal static class PopupLocalizationTests
     private static void SaveSnapshot(ShellViewModel shell, string name = "calibration-photo-error-en")
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISC_IMAGE_STUDIO_UI_SNAPSHOTS"))) return;
+        // Timing measurement is the default method; these checks exercise the photo flow.
+        shell.Calibration.TimingDefaultApplied = true;
         var page = new CalibrationView(shell.Calibration);
         var dock = new JobDock { DataContext = shell };
         var toasts = new ToastHost { DataContext = shell, HorizontalAlignment = HorizontalAlignment.Right,

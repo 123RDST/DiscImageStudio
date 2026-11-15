@@ -85,4 +85,30 @@ internal sealed class FileDialogService
         };
         return dialog.ShowDialog(_ownerProvider()) == true ? dialog.FolderName : null;
     }
+
+    /// <summary>Multi-select file picker for the disc's accompanying files: loose files land
+    /// at the disc root, next to any folders that are also picked.</summary>
+    internal string[]? PickDataFiles()
+    {
+        OpenFileDialog dialog = new()
+        {
+            Title = L.T("添加随盘文件"),
+            Filter = L.T("所有文件|*.*"),
+            CheckFileExists = true,
+            Multiselect = true,
+        };
+        return dialog.ShowDialog(_ownerProvider()) == true ? dialog.FileNames : null;
+    }
+
+    /// <summary>Multi-select folder picker for the disc's accompanying files; each folder
+    /// becomes a directory of its own name on the disc.</summary>
+    internal string[]? PickDataFolders()
+    {
+        OpenFolderDialog dialog = new()
+        {
+            Title = L.T("添加随盘文件夹"),
+            Multiselect = true,
+        };
+        return dialog.ShowDialog(_ownerProvider()) == true ? dialog.FolderNames : null;
+    }
 }

@@ -264,6 +264,12 @@ public sealed record CdExtraBurnResult(
 
 public interface IOpticalDiscBurner
 {
+    /// <summary>Open a read-only session for sector timing. Implementations without a raw
+    /// command channel keep the default and the UI disables timing measurement.</summary>
+    Task<T> ReadDiscAsync<T>(string deviceId, ushort readSpeedKbps, Func<IOpticalReadSession, T> measure,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This recorder does not support sector read timing.");
+
     Task<IReadOnlyList<OpticalBurnDevice>> GetDevicesAsync(
         CancellationToken cancellationToken = default);
 

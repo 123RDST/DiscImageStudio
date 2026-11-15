@@ -40,7 +40,8 @@ internal static class UiPreviewRenderer
         bool settingsDialog = false,
         string? settingsView = null,
         string? language = null,
-        string? driveFixture = null)
+        string? driveFixture = null,
+        bool waitDataRegion = false)
     {
         // The settings window is 760 px wide, so its snapshots relax the page minimum.
         int minimumWidth = settingsDialog ? 640 : 800;
@@ -156,6 +157,12 @@ internal static class UiPreviewRenderer
         if (tonePreview)
         {
             WaitForTonePreview(window, TimeSpan.FromSeconds(90));
+            window.UpdateLayout();
+        }
+
+        if (waitDataRegion)
+        {
+            WaitForDataRegion(window, TimeSpan.FromSeconds(30));
             window.UpdateLayout();
         }
 
@@ -367,6 +374,26 @@ internal static class UiPreviewRenderer
         if (!window.IsTonePreviewReady)
         {
             throw new TimeoutException("Tone preview did not finish within the snapshot timeout.");
+        }
+    }
+
+    /// <summary>Pumps the dispatcher until the design page has planned its blue data region,
+    /// which sits behind the 300 ms debounce and a worker hop.</summary>
+    private static void WaitForDataRegion(MainWindow window, TimeSpan timeout)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (!window.IsDataRegionReady && stopwatch.Elapsed < timeout)
+        {
+            DispatcherFrame frame = new();
+            DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(50) };
+            timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
+            timer.Start();
+            Dispatcher.PushFrame(frame);
+        }
+
+        if (!window.IsDataRegionReady)
+        {
+            throw new TimeoutException("The data region was not planned within the snapshot timeout.");
         }
     }
 

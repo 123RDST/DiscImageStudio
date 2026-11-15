@@ -31,7 +31,6 @@ public partial class ExportViewModel : ObservableObject
         _state = state;
         _design = design;
         BrowseOutputCommand = new RelayCommand(BrowseOutput, () => !_shell.IsBusy);
-        BrowseDataCommand = new RelayCommand(BrowseData, () => !_shell.IsBusy);
         GenerateCommand = new AsyncRelayCommand(GenerateAsync, () => !_shell.IsBusy);
         _shell.BusyChanged += NotifyCommands;
         _shell.PropertyChanged += (_, args) =>
@@ -107,8 +106,6 @@ public partial class ExportViewModel : ObservableObject
 
     public RelayCommand BrowseOutputCommand { get; }
 
-    public RelayCommand BrowseDataCommand { get; }
-
     public IAsyncRelayCommand GenerateCommand { get; }
 
     [ObservableProperty]
@@ -126,7 +123,6 @@ public partial class ExportViewModel : ObservableObject
     private void NotifyCommands()
     {
         BrowseOutputCommand.NotifyCanExecuteChanged();
-        BrowseDataCommand.NotifyCanExecuteChanged();
         GenerateCommand.NotifyCanExecuteChanged();
     }
 
@@ -172,37 +168,6 @@ public partial class ExportViewModel : ObservableObject
             {
                 _state.CdOutputPath = wav;
             }
-        }
-    }
-
-    private void BrowseData()
-    {
-        if (IsCd)
-        {
-            string? picked = _shell.Dialogs?.PickFolder(L.T("选择要放入 CD 数据盘的文件夹"));
-            if (picked is not null)
-            {
-                _state.CdDataDirectory = picked;
-            }
-
-            return;
-        }
-
-        if (IsBluRay)
-        {
-            string? picked = _shell.Dialogs?.PickFolder(L.T("选择要放入蓝光盘的文件夹"));
-            if (picked is not null)
-            {
-                _state.BdDataDirectory = picked;
-            }
-
-            return;
-        }
-
-        string? dvdFolder = _shell.Dialogs?.PickFolder(L.T("选择要放入 DVD 的文件夹"));
-        if (dvdFolder is not null)
-        {
-            _state.DvdDataDirectory = dvdFolder;
         }
     }
 
@@ -291,13 +256,16 @@ public partial class ExportViewModel : ObservableObject
             PitchQuadratic: ParameterParser.ParseDouble(_state.CdPitchQuadratic, L.T("相对二次项")),
             PitchCubic: ParameterParser.ParseDouble(_state.CdPitchCubic, L.T("相对三次项")),
             UsableSectors: _state.GetUsableSectors(OpticalDiscFamily.CompactDisc));
+        // The signature file stamps itself with this generation's moment.
+        DiscParametersState.RefreshAutoReadme(_state.CdDataSources);
         return new CdImageRequest(compositePath, output, parameters, _state.Tone,
             _state.CdInterleave, _state.CdWriteCue, _state.CdDataDirectory.Trim(),
             _state.ResolveVolumeLabel(OpticalDiscFamily.CompactDisc),
             _state.CdFilesAtOuterRing,
             cdExtra ? _state.CdMusicTracks : null,
             measuredSession2,
-            musicAtOuterRing);
+            musicAtOuterRing,
+            _state.CdDataSources.ToArray());
     }
 
     private async Task GenerateDvdAsync(string compositePath)
@@ -312,10 +280,15 @@ public partial class ExportViewModel : ObservableObject
             PitchCubic: ParameterParser.ParseDouble(_state.DvdPitchCubic, L.T("相对三次项")),
             UsableSectors: checked((uint)_state.GetUsableSectors(OpticalDiscFamily.Dvd)),
             Tone: _state.DvdTone,
-            ReadCompatibility: _state.DvdReadCompatibility);
+            ReadCompatibility: _state.DvdReadCompatibility,
+            // An exported ISO is burned elsewhere, so it has to carry the same correction a
+            // streaming burn would apply; otherwise the two delivery paths disagree silently.
+            AngularResidual: _state.DvdAngularResidual);
+        DiscParametersState.RefreshAutoReadme(_state.DvdDataSources);
         DvdImageRequest request = new(compositePath, output, options, _state.DvdDataDirectory.Trim(),
             _state.ResolveVolumeLabel(OpticalDiscFamily.Dvd),
-            !string.IsNullOrWhiteSpace(_state.DvdDataDirectory) && _state.DvdFilesAtOuterRing);
+            _state.DvdDataSources.Count > 0 && _state.DvdFilesAtOuterRing,
+            _state.DvdDataSources.ToArray());
         if (await _shell.RunImageJobAsync(L.T("正在生成 DVD ISO…"), output,
                 (progress, token) => DvdImageGenerator.Generate(request, progress, token), request.ToString()))
             _state.DvdIsoPath = output;
@@ -332,10 +305,12 @@ public partial class ExportViewModel : ObservableObject
             PitchQuadratic: ParameterParser.ParseDouble(_state.BdPitchQuadratic, L.T("相对二次项")),
             PitchCubic: ParameterParser.ParseDouble(_state.BdPitchCubic, L.T("相对三次项")),
             UsableSectors: checked((uint)_state.GetUsableSectors(OpticalDiscFamily.BluRay)));
+        DiscParametersState.RefreshAutoReadme(_state.BdDataSources);
         BluRayImageRequest request = new(compositePath, output, parameters, _state.BluRayTone,
             _state.BdInvertMapping, _state.BdDataDirectory.Trim(),
             _state.ResolveVolumeLabel(OpticalDiscFamily.BluRay),
-            _state.BdFilesAtOuterRing);
+            _state.BdFilesAtOuterRing,
+            _state.BdDataSources.ToArray());
         BluRayImageGenerator generator = new(BluRayImageLoader.Load);
         if (await _shell.RunImageJobAsync(L.T("正在生成蓝光 ISO…"), output,
                 (progress, token) => generator.Generate(request, progress, token), request.ToString()))

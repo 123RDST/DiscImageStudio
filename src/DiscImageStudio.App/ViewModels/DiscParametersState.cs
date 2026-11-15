@@ -51,6 +51,7 @@ public partial class DiscParametersState : ObservableObject
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(discPresetJsonPath);
         _discPresetJsonPath = discPresetJsonPath;
+        AttachDataSources();
     }
 
     private IReadOnlyList<CdDiscPreset> _cdPresets = [ManualCdPreset];
@@ -79,10 +80,8 @@ public partial class DiscParametersState : ObservableObject
     [ObservableProperty] private string _cdPreviewSize = "1600";
     [ObservableProperty] private string _cdSamplesPerSector = "16";
     [ObservableProperty] private bool _cdInterleave = true;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCdFiles), nameof(IsCdAudioMode), nameof(IsCdWaveOutput),
-        nameof(CdOutputLabel), nameof(CdOutputHint), nameof(UsesCdVolumeLabel))]
-    private string _cdDataDirectory = string.Empty;
+    // CdDataDirectory lives in DiscParametersState.DataSources.cs: the storage is now a list
+    // of picked folders and files, and this property is a single-path view over it.
     [ObservableProperty] private bool _cdFilesAtOuterRing;
     [ObservableProperty] private string _cdVolumeLabel = DefaultCdVolumeLabel;
 
@@ -124,7 +123,6 @@ public partial class DiscParametersState : ObservableObject
     [ObservableProperty] private string _dvdImagePath = string.Empty;
     [ObservableProperty] private string _dvdIsoPath = string.Empty;
     [ObservableProperty] private string _dvdOutputPath = string.Empty;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasDvdFiles))] private string _dvdDataDirectory = string.Empty;
     [ObservableProperty] private bool _dvdFilesAtOuterRing;
     [ObservableProperty] private bool _dvdReadCompatibility;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(DvdPitchSummary), nameof(DvdActualPitchSummary))] private string _dvdTotalSectors = "2295104";
@@ -150,7 +148,6 @@ public partial class DiscParametersState : ObservableObject
     [ObservableProperty] private string _bdImagePath = string.Empty;
     [ObservableProperty] private string _bdIsoPath = string.Empty;
     [ObservableProperty] private string _bdOutputPath = string.Empty;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasBluRayFiles))] private string _bdDataDirectory = string.Empty;
     [ObservableProperty] private bool _bdFilesAtOuterRing;
     [ObservableProperty] private string _bdVolumeLabel = DefaultBluRayVolumeLabel;
     [ObservableProperty] private string _bdTotalSectors = "12219392";
@@ -176,6 +173,11 @@ public partial class DiscParametersState : ObservableObject
     [ObservableProperty] private string _bluRayPresetHint = string.Empty;
     [ObservableProperty] private CdDiscPreset _selectedCdPreset = ManualCdPreset;
     [ObservableProperty] private DvdDiscPreset _selectedDvdPreset = ManualDvdPreset;
+
+    /// <summary>Measured angular correction that travels with the DVD preset. It is not derived
+    /// from the radius/pitch text fields, so editing those by hand keeps it, while selecting
+    /// another preset replaces it.</summary>
+    [ObservableProperty] private AngularResidualTable? _dvdAngularResidual;
     [ObservableProperty] private BluRayDiscPreset _selectedBluRayPreset = ManualBluRayPreset;
 
     // Tone mapping shared by both families. New projects open at 75% dither: enough to keep
@@ -236,7 +238,7 @@ public partial class DiscParametersState : ObservableObject
     public bool IsCdWaveOutput => IsCdAudioMode && Path.GetExtension(CdOutputPath.Trim())
         .Equals(".wav", StringComparison.OrdinalIgnoreCase);
 
-    public bool HasCdFiles => !string.IsNullOrWhiteSpace(CdDataDirectory);
+    public bool HasCdFiles => CdDataSources.Count > 0;
 
     /// <summary>CD-Extra mode. Meaningful for CD projects only; every consumer also checks
     /// the open project's family.</summary>
@@ -273,8 +275,6 @@ public partial class DiscParametersState : ObservableObject
         : HasCdFiles
             ? L.T("包含随盘文件，导出为 CD 数据盘 ISO。")
             : L.T("无随盘文件时生成音轨，推荐 WAV 格式。");
-
-    partial void OnCdDataDirectoryChanged(string value) => NormalizeCdOutputFormat();
 
     partial void OnCdExtraEnabledChanged(bool value) => NormalizeCdOutputFormat();
 
@@ -327,9 +327,9 @@ public partial class DiscParametersState : ObservableObject
         }
     }
 
-    public bool HasDvdFiles => !string.IsNullOrWhiteSpace(DvdDataDirectory);
+    public bool HasDvdFiles => DvdDataSources.Count > 0;
 
-    public bool HasBluRayFiles => !string.IsNullOrWhiteSpace(BdDataDirectory);
+    public bool HasBluRayFiles => BdDataSources.Count > 0;
 
     public string DvdPitchSummary => PitchSummary(actual: false);
     public string DvdActualPitchSummary => PitchSummary(actual: true);
@@ -504,7 +504,8 @@ public partial class DiscParametersState : ObservableObject
         double pitchCubic = 0,
         bool invertMapping = false,
         long? usableSectors = null,
-        bool applyPreset = false)
+        bool applyPreset = false,
+        AngularResidualTable? angularResidual = null)
     {
         string name = displayName.Trim();
         if (name.Length == 0)
@@ -545,7 +546,10 @@ public partial class DiscParametersState : ObservableObject
                         PitchLinear: pitchLinear,
                         PitchQuadratic: pitchQuadratic,
                         PitchCubic: pitchCubic,
-                        UsableSectors: checked((uint)usable)),
+                        UsableSectors: checked((uint)usable),
+                        AngularResidual: (angularResidual ?? DvdAngularResidual) is { IsEmpty: false } measured
+                            ? [.. measured.Points]
+                            : null),
                 ],
             },
             OpticalDiscFamily.BluRay => user with
@@ -677,7 +681,10 @@ public partial class DiscParametersState : ObservableObject
                 PitchQuadratic: value.PitchQuadratic,
                 PitchCubic: value.PitchCubic,
                 Contributor: value.Contributor,
-                UsableSectors: value.UsableSectors))
+                UsableSectors: value.UsableSectors,
+                AngularResidual: value.AngularResidual is { Count: > 0 } residual
+                    ? AngularResidualTable.Create(residual)
+                    : null))
             .ToList();
         dvdPresets.Add(ManualDvdPreset);
 
@@ -783,7 +790,21 @@ public partial class DiscParametersState : ObservableObject
 
     partial void OnCdOuterRadiusChanged(string value) => OnCdParameterEdited(presetField: true);
 
-    partial void OnDvdTotalSectorsChanged(string value) => OnDvdParameterEdited(presetField: true);
+    partial void OnDvdTotalSectorsChanged(string value)
+    {
+        OnDvdParameterEdited(presetField: true);
+        // A writable count seeded by the previous preset stops making sense once the extent is
+        // edited below it. Dropping it lets the derived value (extent − 608, 16-aligned) take
+        // over instead of failing every later read with "writable sectors exceed total".
+        if (!_isApplyingDiscPreset
+            && _dvdUsableSectors.Length > 0
+            && long.TryParse(value, out long total)
+            && long.TryParse(_dvdUsableSectors, out long usable)
+            && usable > total)
+        {
+            DvdUsableSectors = string.Empty;
+        }
+    }
     partial void OnDvdUsableSectorsChanged(string value) => OnDvdParameterEdited(presetField: true);
 
     partial void OnDvdInnerRadiusChanged(string value) => OnDvdParameterEdited(presetField: true);
@@ -896,6 +917,9 @@ public partial class DiscParametersState : ObservableObject
         {
             SelectedDvdPreset = preset;
             DvdPresetHint = preset.Description;
+            // The manual pseudo-preset means "the user is editing the fields": keep the measured
+            // correction instead of dropping it, and let a real catalog entry replace it.
+            if (!preset.IsCustom) DvdAngularResidual = preset.AngularResidual;
             if (writeGeometry && !preset.IsCustom)
             {
                 DvdTotalSectors = preset.TotalSectors.ToString(System.Globalization.CultureInfo.InvariantCulture);

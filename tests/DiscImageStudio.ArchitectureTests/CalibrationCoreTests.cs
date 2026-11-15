@@ -249,10 +249,14 @@ internal static class CalibrationCoreTests
             MethodInfo create = spiral.GetMethod("Create", BindingFlags.Static | BindingFlags.NonPublic)!;
             MethodInfo radiusAt = spiral.GetMethod("RadiusAtArcLength", BindingFlags.Instance | BindingFlags.NonPublic)!;
             MethodInfo angleAt = spiral.GetMethod("AngleAtArcLength", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            // The last argument is the optional angular residual table; these checks measure the
+            // plain spiral, so it stays null.
             object generatedSpiral = create.Invoke(null, [generated.InnerRadiusMm, generated.OuterRadiusMm,
-                generated.TrackLengthMm, generated.PitchLinear, generated.PitchQuadratic, generated.PitchCubic])!;
+                generated.TrackLengthMm, generated.PitchLinear, generated.PitchQuadratic, generated.PitchCubic,
+                null])!;
             object actualSpiral = create.Invoke(null, [actual.InnerRadiusMm, actual.OuterRadiusMm,
-                actual.TrackLengthMm, actual.PitchLinear, actual.PitchQuadratic, actual.PitchCubic])!;
+                actual.TrackLengthMm, actual.PitchLinear, actual.PitchQuadratic, actual.PitchCubic,
+                null])!;
             double distance = generated.TrackLengthMm * 0.37;
             source = Polar((double)radiusAt.Invoke(generatedSpiral, [distance])!, (double)angleAt.Invoke(generatedSpiral, [distance])!);
             expected = Polar((double)radiusAt.Invoke(actualSpiral, [distance])!, (double)angleAt.Invoke(actualSpiral, [distance])! + rotation);

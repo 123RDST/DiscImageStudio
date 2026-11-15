@@ -124,6 +124,8 @@ internal static class CalibrationFitLocalizationTests
     private static void SaveSnapshot(ShellViewModel shell)
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISC_IMAGE_STUDIO_UI_SNAPSHOTS"))) return;
+        // Timing measurement is the default method; these checks exercise the photo flow.
+        shell.Calibration.TimingDefaultApplied = true;
         var page = new CalibrationView(shell.Calibration);
         var dock = new JobDock { DataContext = shell };
         var layout = new Grid { DataContext = shell };

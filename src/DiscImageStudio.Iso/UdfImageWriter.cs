@@ -63,23 +63,53 @@ public static class UdfImageWriter
 
     public static LayoutPlan Plan(string? sourceDirectory, uint volumeSectors, string volumeLabel,
         DateTimeOffset? timestamp = null, bool filesAtOuterRing = false)
+        => PlanSources(sourceDirectory is null ? [] : [sourceDirectory], volumeSectors, volumeLabel,
+            timestamp, filesAtOuterRing);
+
+    /// <summary>Plans a UDF volume from several sources. One folder keeps the original flat
+    /// layout — its contents land at the root — while several folders each become a
+    /// subdirectory and loose files land at the root.</summary>
+    public static LayoutPlan PlanSources(IReadOnlyList<string>? sources, uint volumeSectors,
+        string volumeLabel, DateTimeOffset? timestamp = null, bool filesAtOuterRing = false)
     {
         if (volumeSectors < MinimumVolumeSectors || volumeSectors % 32 != 0)
             throw new ArgumentOutOfRangeException(nameof(volumeSectors),
                 $"UDF drawing volumes need at least {MinimumVolumeSectors} sectors and a multiple of 32 sectors.");
         ArgumentNullException.ThrowIfNull(volumeLabel);
         DateTimeOffset recorded = timestamp ?? DateTimeOffset.UtcNow;
-        string sourcePath = sourceDirectory is null ? string.Empty : Path.GetFullPath(sourceDirectory);
-        if (sourceDirectory is not null && !Directory.Exists(sourcePath))
-            throw new DirectoryNotFoundException($"Data directory does not exist: {sourcePath}");
-        if (sourceDirectory is not null)
-            RejectReparsePoint(sourcePath);
+        List<string> resolved = ResolveSources(sources);
+        bool flat = resolved.Count == 1 && Directory.Exists(resolved[0]);
+        string sourcePath = resolved.FirstOrDefault(Directory.Exists) ?? string.Empty;
 
-        Node root = new(sourcePath, string.Empty, true, null)
+        Node root = new(flat ? resolved[0] : string.Empty, string.Empty, true, null)
         {
-            Timestamp = sourceDirectory is null ? recorded : Directory.GetLastWriteTimeUtc(sourcePath),
+            Timestamp = flat ? Directory.GetLastWriteTimeUtc(resolved[0]) : recorded,
         };
         List<Node> nodes = [root];
+        if (!flat)
+        {
+            foreach (string source in resolved)
+            {
+                RejectReparsePoint(source);
+                bool isDirectory = Directory.Exists(source);
+                string name = isDirectory
+                    ? Path.GetFileName(Path.TrimEndingDirectorySeparator(source))
+                    : Path.GetFileName(source);
+                if (name.Length == 0) name = "ROOT";
+                Node child = new(source, name, isDirectory, root)
+                {
+                    Timestamp = isDirectory
+                        ? Directory.GetLastWriteTimeUtc(source)
+                        : File.GetLastWriteTimeUtc(source),
+                    Identifier = EncodeIdentifier(name),
+                    DataLength = isDirectory ? 0 : new FileInfo(source).Length,
+                    UniqueId = checked((ulong)nodes.Count + 15),
+                };
+                root.Children.Add(child);
+                nodes.Add(child);
+            }
+        }
+
         // Iterative traversal avoids a call-stack dependency on the depth of the source tree.
         for (int index = 0; index < nodes.Count; index++)
         {
@@ -159,6 +189,26 @@ public static class UdfImageWriter
         label = FitDstring(label, 128);
         return new LayoutPlan(sourcePath, volumeSectors, label, recorded, nodes, partitionStart,
             cursor, drawingStart, drawingEnd, filesAtOuterRing);
+    }
+
+    /// <summary>Absolute, de-duplicated, existing sources. A vanished pick keeps the
+    /// <see cref="DirectoryNotFoundException"/> the single-folder API always threw, so the
+    /// design guide and the burn path classify it the same way; the message names the path.</summary>
+    private static List<string> ResolveSources(IReadOnlyList<string>? sources)
+    {
+        List<string> resolved = [];
+        if (sources is null) return resolved;
+        foreach (string source in sources)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+                throw new ArgumentException("Data sources must not contain empty paths.", nameof(sources));
+            string full = Path.GetFullPath(source);
+            if (!File.Exists(full) && !Directory.Exists(full))
+                throw new DirectoryNotFoundException($"Data source does not exist: {full}");
+            if (!resolved.Contains(full, StringComparer.OrdinalIgnoreCase)) resolved.Add(full);
+        }
+
+        return resolved;
     }
 
     public static void WriteSequentialPrefix(LayoutPlan plan, Stream output, uint endLbaExclusive,
