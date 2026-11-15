@@ -52,6 +52,10 @@ public partial class DiscParametersState : ObservableObject
         ArgumentException.ThrowIfNullOrWhiteSpace(discPresetJsonPath);
         _discPresetJsonPath = discPresetJsonPath;
         AttachDataSources();
+        // The caption is localized text, so a language switch has to rebuild it; the state
+        // lives as long as the app, so the static event subscription never leaks.
+        L.LanguageChanged += (_, _) => RefreshAngularChart();
+        RefreshAngularChart();
     }
 
     private IReadOnlyList<CdDiscPreset> _cdPresets = [ManualCdPreset];

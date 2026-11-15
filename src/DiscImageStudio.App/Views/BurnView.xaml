@@ -39,6 +39,28 @@
                             <controls:VisibilityGate IsOpen="{Binding UseCalibrationPattern}">
                                 <TextBlock Text="{loc:Text DvdReadCompatibility.FrozenHint}" Style="{StaticResource HintText}" Margin="0,6,0,0" />
                             </controls:VisibilityGate>
+                            <!-- The correction curve applied to this burn: the same chart the
+                                 export page shows, so a missing table is caught before the
+                                 laser starts, not after the disc comes out bent. -->
+                            <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,14,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Canvas Width="268" Height="64" ClipToBounds="True" VerticalAlignment="Center"
+                                            Background="Transparent">
+                                        <Polyline Points="{Binding State.AngularChartPoints}"
+                                                  Stroke="{DynamicResource PrimaryBrush}" StrokeThickness="1.5"
+                                                  StrokeLineJoin="Round" />
+                                    </Canvas>
+                                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:Text Angular.Table}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding State.AngularChartCaption}" Margin="0,2,0,0"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </controls:VisibilityGate>
                     <!-- CD-Extra writes two sessions with explicit Track-at-Once commands; a

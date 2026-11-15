@@ -59,6 +59,14 @@ internal static class TimingIntegrationTests
             Require(calibration.AngularResidualChartPoints.Count == 3
                 && calibration.AngularResidualCaption.Contains('3'),
                 "the loaded table is drawn as a curve and labelled with its point count");
+            // The curve lives on the shared state, so every page that binds it reads the same
+            // table. The calibration page owns a second state (its setup must not disturb the
+            // running project), but the export and burn pages share the project state.
+            Require(ReferenceEquals(calibration.AngularResidualChartPoints, calibration.Parameters.AngularChartPoints)
+                && ReferenceEquals(shell.Export.State, shell.Burn.State)
+                && shell.Export.State.AngularChartPoints.Count == shell.Export.State.DvdAngularResidual!.Points.Count
+                && shell.Export.State.HasAngularChart,
+                "the calibration page forwards the chart, and export/burn share the project state");
             calibration.ApplyTimingResultCommand.Execute(null);
             Require(calibration.HasAngularResidual,
                 "applying a timing result keeps the measured angular table");

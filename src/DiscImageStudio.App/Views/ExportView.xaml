@@ -99,6 +99,28 @@
                             <TextBlock Style="{StaticResource HintText}" Margin="0,4,0,0"
                                        Text="{loc:Text Xaml.VolumeLabelHint}" />
                             <controls:DvdReadCompatibilityToggle IsChecked="{Binding State.DvdReadCompatibility}" Margin="0,14,0,0" />
+                            <!-- The correction curve this ISO will carry: an empty table once
+                                 exported a disc whose outer edge bent, so the chart stays on
+                                 the page where the artifact is produced. -->
+                            <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,14,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Canvas Width="268" Height="64" ClipToBounds="True" VerticalAlignment="Center"
+                                            Background="Transparent">
+                                        <Polyline Points="{Binding State.AngularChartPoints}"
+                                                  Stroke="{DynamicResource PrimaryBrush}" StrokeThickness="1.5"
+                                                  StrokeLineJoin="Round" />
+                                    </Canvas>
+                                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:Text Angular.Table}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding State.AngularChartCaption}" Margin="0,2,0,0"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </controls:VisibilityGate>
 
