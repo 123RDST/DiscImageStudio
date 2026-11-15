@@ -1,0 +1,552 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace DiscImageStudio.Core;
+
+/// <summary>Geometry of one project: the generation parameters a disc family needs.
+/// CD uses only the radii pair and the sector count; the remaining pitch fields exist so a
+/// DVD project round-trips without reshaping the record.</summary>
+public sealed record ProjectGeometry(
+    double InnerRadiusMm,
+    double OuterRadiusMm,
+    long Sectors,
+    double PitchLinear = 0,
+    double PitchQuadratic = 0,
+    double PitchCubic = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    long? UsableSectors = null,
+    // Angular correction measured by fine calibration, keyed by normalized radius. DVD only;
+    // null means the plain cubic spiral, which is what projects written before it carry.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<AngularResidualPoint>? AngularResidual = null);
+
+/// <summary>One design layer: an image placed relative to the disc centre. Translation is in
+/// millimetres (+x right, +y down on the canvas), rotation in degrees clockwise, and scale is
+/// a factor applied to the image's initially fitted size.</summary>
+public sealed record ProjectLayer(
+    string Id,
+    string Name,
+    string ImagePath,
+    bool Visible,
+    double TranslateXMm,
+    double TranslateYMm,
+    double RotationDeg,
+    double Scale);
+
+/// <summary>Where the next generation job writes, and the per-family output switches.</summary>
+public sealed record ProjectOutputs(
+    string OutputPath,
+    bool WriteCue,
+    string DataDirectory,
+    string VolumeLabel,
+    bool Interleave,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool FilesAtOuterRing = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool DvdReadCompatibility = false,
+    // Folders and loose files that travel with the disc. Older projects have no list and only
+    // DataDirectory; readers prefer this list when present and fall back to the single path.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? DataSources = null);
+
+/// <summary>Generation settings that exist only for BD-R: the 3T/6T mapping polarity.
+/// This is deliberately separate from <see cref="ToneProfile"/>: polarity selects which
+/// run-length class a payload bit drives, while tone decides how a source grey becomes
+/// that bit.</summary>
+public sealed record ProjectBluRaySettings(bool InvertMapping = false);
+
+/// <summary>One CD-Extra music track: a CD-format PCM WAV referenced by absolute path.</summary>
+public sealed record ProjectMusicTrack(string Path);
+
+/// <summary>Music + picture settings, CD projects only. When enabled, the listed tracks are
+/// the music. With <see cref="MusicAtOuterRing"/> the disc is one audio session whose
+/// picture is the pre-gap of track 1; otherwise it is a CD-Extra (Enhanced CD) disc whose
+/// picture is a second, data session. Audio players play the picture in neither case.
+/// The list is kept while the mode is switched off.</summary>
+public sealed record ProjectCdExtraSettings(bool Enabled, IReadOnlyList<ProjectMusicTrack> Tracks,
+    bool MusicAtOuterRing = false)
+{
+    /// <summary>One data track must remain within the CD limit of 99 tracks.</summary>
+    public const int MaximumTracks = 98;
+}
+
+/// <summary>The on-disk project (.discproj): everything needed to reopen a disc design and
+/// regenerate its outputs. Images stay referenced by absolute path.
+/// <see cref="Tone"/> is null for files written before tone mapping existed; those projects
+/// keep the original hard-threshold output until their tone slider is touched.
+/// Schema 1 held CD/DVD only; schema 2 adds <see cref="BluRay"/> and reads schema 1 by
+/// treating it as a CD/DVD project.</summary>
+public sealed record ProjectDocument(
+    int SchemaVersion,
+    string Name,
+    string DiscFamily,
+    ProjectGeometry Geometry,
+    IReadOnlyList<ProjectLayer> Layers,
+    ProjectOutputs Outputs,
+    string? CalibrationSessionPath,
+    string? ThumbnailPngBase64,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset ModifiedUtc,
+    ToneProfile? Tone = null,
+    ProjectBluRaySettings? BluRay = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    ProjectCdExtraSettings? CdExtra = null)
+{
+    public const string CdFamily = "cd";
+    public const string DvdFamily = "dvd";
+    public const string BluRayFamily = "bd";
+    public const int BluRaySectorsPerCluster = 32;
+    public const long BluRaySectorsPerLayer = 12_219_392;
+    // Sized for the home page's recent-project disc (176px display): the face is shown near
+    // this resolution, so a 96px thumbnail would visibly blur.
+    public const int ThumbnailDecodeSize = 256;
+
+    /// <summary>Members the current schema no longer has but older files legitimately carry.
+    /// The removed imageProcessing section is the one legacy key: files written before the
+    /// ring-copy mode was abolished load with it captured here (instead of failing strict
+    /// unmapped-member validation) and drop it on the next save. Any other unknown member is
+    /// still rejected by <see cref="ProjectJsonStore.Validate"/>.</summary>
+    public const string LegacyImageProcessingKey = "imageProcessing";
+
+    [JsonIgnore]
+    public OpticalDiscFamily Family => DiscFamily switch
+    {
+        DvdFamily => OpticalDiscFamily.Dvd,
+        BluRayFamily => OpticalDiscFamily.BluRay,
+        _ => OpticalDiscFamily.CompactDisc,
+    };
+
+    [JsonIgnore]
+    public bool IsCd => Family == OpticalDiscFamily.CompactDisc;
+
+    [JsonIgnore]
+    public bool IsDvd => Family == OpticalDiscFamily.Dvd;
+
+    [JsonIgnore]
+    public bool IsBluRay => Family == OpticalDiscFamily.BluRay;
+
+    [JsonIgnore]
+    public string FamilyLabel => Family switch
+    {
+        OpticalDiscFamily.Dvd => "DVD",
+        OpticalDiscFamily.BluRay => "BD",
+        _ => "CD",
+    };
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+}
+
+/// <summary>Persists <see cref="ProjectDocument"/> files. Mirrors DiscPresetJsonStore: strict
+/// JSON, validated on both load and save, written through a temp file so a crash mid-write
+/// can never leave a half-written project behind.</summary>
+public static class ProjectJsonStore
+{
+    public const int CurrentSchemaVersion = 2;
+    /// <summary>Written for a project that carries a member a build without schema 3 cannot
+    /// know — the cdExtra block or the measured angular table — so such a build reports an
+    /// unsupported version instead of a malformed file; every other project stays at
+    /// <see cref="CurrentSchemaVersion"/> and opens in both.</summary>
+    public const int CdExtraSchemaVersion = 3;
+
+    /// <summary>The version a file with this content is written as, which is also the lowest
+    /// version a file with this content may declare: the schema version states the newest
+    /// feature the document uses, not the newest format the writer knows. Saving and loading
+    /// both go through this one rule. In memory the version is not kept; a loaded document
+    /// always carries <see cref="CurrentSchemaVersion"/>.</summary>
+    public static int RequiredSchemaVersion(ProjectDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        // Both members are present in the file when set, and builds without them reject any
+        // member they do not know.
+        return document.CdExtra is null && document.Geometry?.AngularResidual is null
+            ? CurrentSchemaVersion : CdExtraSchemaVersion;
+    }
+    private const int LegacySchemaVersion = 1;
+    public const string FileExtension = ".discproj";
+    public const string FileFilter = "Disc Image Studio 工程|*.discproj";
+
+    // 256px PNG of a photographic design stays under ~200K base64 chars; the cap keeps a
+    // pathological file from bloating the project JSON.
+    private const int MaxThumbnailBase64Chars = 512 * 1024;
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        AllowTrailingCommas = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        WriteIndented = true,
+    };
+
+    public static string GetDefaultProjectsDirectory()
+        => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "DiscImageStudio Projects");
+
+    public static ProjectDocument Load(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        using FileStream stream = File.OpenRead(path);
+        return Deserialize(stream, Path.GetFileName(path));
+    }
+
+    public static void Save(string path, ProjectDocument document)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(document);
+        Validate(document);
+
+        string fullPath = Path.GetFullPath(path);
+        string? directory = Path.GetDirectoryName(fullPath);
+        if (string.IsNullOrEmpty(directory))
+        {
+            throw DiagnosticMessage.Argument($"工程路径必须包含目录。", nameof(path));
+        }
+
+        Directory.CreateDirectory(directory);
+        // Legacy extension members (the removed imageProcessing section) are accepted on load
+        // but never written back: saving is what migrates an old file to the current schema.
+        ProjectDocument clean = document with
+        {
+            SchemaVersion = RequiredSchemaVersion(document),
+            ExtensionData = document.ExtensionData is { Count: > 0 } ? null : document.ExtensionData,
+        };
+        string temporaryPath = Path.Combine(directory, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (FileStream stream = new(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None))
+            {
+                JsonSerializer.Serialize(stream, clean, JsonOptions);
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(temporaryPath, fullPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    public static void Validate(ProjectDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (document.SchemaVersion is not (LegacySchemaVersion or CurrentSchemaVersion or CdExtraSchemaVersion))
+        {
+            throw DiagnosticMessage.InvalidData(
+                $"不支持 schemaVersion={document.SchemaVersion}；当前支持 {LegacySchemaVersion}、{CurrentSchemaVersion} 与 {CdExtraSchemaVersion}。");
+        }
+
+        if (document.SchemaVersion == LegacySchemaVersion
+            && (document.IsBluRay || document.BluRay is not null))
+        {
+            throw DiagnosticMessage.InvalidData($"schemaVersion 1 只包含 CD/DVD 工程，不能声明蓝光字段。");
+        }
+
+        if (!document.IsBluRay && document.BluRay is not null)
+        {
+            throw DiagnosticMessage.InvalidData($"bluRay 设置只用于蓝光工程。");
+        }
+
+        if (!document.IsCd && document.CdExtra is not null)
+        {
+            throw DiagnosticMessage.InvalidData($"cdExtra 设置只用于 CD 工程。");
+        }
+
+        if (string.IsNullOrWhiteSpace(document.Name))
+        {
+            throw DiagnosticMessage.InvalidData($"工程名不能为空。");
+        }
+
+        if (!IsKnownFamily(document.DiscFamily))
+        {
+            throw DiagnosticMessage.InvalidData(
+                $"discFamily '{document.DiscFamily}' 无效；仅支持 '{ProjectDocument.CdFamily}'、'{ProjectDocument.DvdFamily}' 与 '{ProjectDocument.BluRayFamily}'。");
+        }
+
+        if (document.Geometry is null)
+        {
+            throw DiagnosticMessage.InvalidData($"geometry 不能为空。");
+        }
+
+        if (document.Outputs is null)
+        {
+            throw DiagnosticMessage.InvalidData($"outputs 不能为空。");
+        }
+
+        ValidateExtensionData(document);
+        ValidateGeometry(document);
+        ValidateLayers(document);
+        ValidateOutputs(document);
+        ValidateCdExtra(document);
+        ValidateTone(document);
+        ValidateThumbnail(document.ThumbnailPngBase64);
+    }
+
+    private static void ValidateCdExtra(ProjectDocument document)
+    {
+        if (document.CdExtra is not { } settings)
+        {
+            return;
+        }
+
+        if (settings.Tracks is null)
+        {
+            throw DiagnosticMessage.InvalidData($"cdExtra.tracks 不能为空。");
+        }
+
+        if (settings.Tracks.Count > ProjectCdExtraSettings.MaximumTracks)
+        {
+            throw DiagnosticMessage.InvalidData(
+                $"cdExtra 最多包含 {ProjectCdExtraSettings.MaximumTracks} 首音乐。");
+        }
+
+        foreach (ProjectMusicTrack? track in settings.Tracks)
+        {
+            if (track is null || string.IsNullOrWhiteSpace(track.Path))
+            {
+                throw DiagnosticMessage.InvalidData($"cdExtra 的音乐路径不能为空。");
+            }
+        }
+    }
+
+    private static void ValidateTone(ProjectDocument document)
+    {
+        if (document.Tone is not { } tone)
+        {
+            return;
+        }
+
+        try
+        {
+            tone.Validate("tone");
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            throw DiagnosticMessage.InvalidData($"{DiagnosticMessage.Detail(exception)}", exception);
+        }
+    }
+
+    /// <summary>Strict about unknown members even though <see cref="ProjectDocument"/> has an
+    /// extension-data bag: the bag exists only so files carrying the removed imageProcessing
+    /// section still open, never as a silent sink for misspelled fields.</summary>
+    private static void ValidateExtensionData(ProjectDocument document)
+    {
+        if (document.ExtensionData is null)
+        {
+            return;
+        }
+
+        string? unknown = document.ExtensionData.Keys.FirstOrDefault(
+            key => !string.Equals(key, ProjectDocument.LegacyImageProcessingKey, StringComparison.Ordinal));
+        if (unknown is not null)
+        {
+            throw DiagnosticMessage.InvalidData($"无法识别的工程字段 '{unknown}'。");
+        }
+    }
+
+    public static bool IsKnownFamily(string? family)
+        => string.Equals(family, ProjectDocument.CdFamily, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(family, ProjectDocument.DvdFamily, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(family, ProjectDocument.BluRayFamily, StringComparison.OrdinalIgnoreCase);
+
+    private static void ValidateGeometry(ProjectDocument document)
+    {
+        ProjectGeometry geometry = document.Geometry;
+        ValidatePositiveFinite(geometry.InnerRadiusMm, "innerRadiusMm");
+        ValidatePositiveFinite(geometry.OuterRadiusMm, "outerRadiusMm");
+        if (geometry.OuterRadiusMm <= geometry.InnerRadiusMm)
+        {
+            throw DiagnosticMessage.InvalidData($"outerRadiusMm 必须大于 innerRadiusMm。");
+        }
+
+        if (geometry.Sectors <= 0)
+        {
+            throw DiagnosticMessage.InvalidData($"sectors 必须大于 0。");
+        }
+
+        int alignment = document.IsBluRay ? ProjectDocument.BluRaySectorsPerCluster : document.IsDvd ? 16 : 1;
+        if (geometry.UsableSectors is { } usable
+            && (usable <= 0 || usable > geometry.Sectors || usable % alignment != 0))
+        {
+            throw DiagnosticMessage.InvalidData($"usableSectors 必须大于 0、不超过 sectors，且是 {alignment} 的倍数。");
+        }
+
+        if (document.IsBluRay)
+        {
+            if (geometry.Sectors % ProjectDocument.BluRaySectorsPerCluster != 0)
+            {
+                throw DiagnosticMessage.InvalidData($"蓝光的 sectors 必须是 32 的倍数。");
+            }
+
+            if (geometry.Sectors > ProjectDocument.BluRaySectorsPerLayer)
+            {
+                throw DiagnosticMessage.InvalidData(
+                    $"蓝光 sectors 不能超过单层容量 {ProjectDocument.BluRaySectorsPerLayer:N0}。");
+            }
+
+            if (geometry.OuterRadiusMm > 60)
+            {
+                throw DiagnosticMessage.InvalidData($"蓝光外半径不能超过 60 mm。");
+            }
+
+        }
+
+        try
+        {
+            DvdTrackGeometry.ValidatePitchCoefficients(
+                geometry.PitchLinear,
+                geometry.PitchQuadratic,
+                geometry.PitchCubic);
+        }
+        catch (ArgumentException exception)
+        {
+            throw DiagnosticMessage.InvalidData($"轨距系数无效：{DiagnosticMessage.Detail(exception)}", exception);
+        }
+
+        if (geometry.AngularResidual is { Count: > 0 } angular)
+        {
+            if (!document.IsDvd)
+            {
+                throw DiagnosticMessage.InvalidData($"角度修正表只用于 DVD 工程。");
+            }
+
+            try
+            {
+                _ = AngularResidualTable.Create(angular);
+            }
+            catch (ArgumentException exception)
+            {
+                throw DiagnosticMessage.InvalidData($"角度修正表无效：{DiagnosticMessage.Detail(exception)}", exception);
+            }
+        }
+    }
+
+    private static void ValidateLayers(ProjectDocument document)
+    {
+        if (document.Layers is null)
+        {
+            throw DiagnosticMessage.InvalidData($"layers 不能为空。");
+        }
+
+        HashSet<string> uniqueIds = new(StringComparer.Ordinal);
+        foreach (ProjectLayer? layer in document.Layers)
+        {
+            if (layer is null)
+            {
+                throw DiagnosticMessage.InvalidData($"图层不能是 null。");
+            }
+
+            if (string.IsNullOrWhiteSpace(layer.Id) || !uniqueIds.Add(layer.Id))
+            {
+                throw DiagnosticMessage.InvalidData($"图层 id '{layer.Id}' 为空或重复。");
+            }
+
+            if (string.IsNullOrWhiteSpace(layer.Name))
+            {
+                throw DiagnosticMessage.InvalidData($"图层 '{layer.Id}' 的 name 不能为空。");
+            }
+
+            if (string.IsNullOrWhiteSpace(layer.ImagePath))
+            {
+                throw DiagnosticMessage.InvalidData($"图层 '{layer.Id}' 的 imagePath 不能为空。");
+            }
+
+            ValidateFinite(layer.TranslateXMm, $"图层 '{layer.Id}' 的 translateXMm");
+            ValidateFinite(layer.TranslateYMm, $"图层 '{layer.Id}' 的 translateYMm");
+            ValidateFinite(layer.RotationDeg, $"图层 '{layer.Id}' 的 rotationDeg");
+            if (!double.IsFinite(layer.Scale) || layer.Scale <= 0)
+            {
+                throw DiagnosticMessage.InvalidData($"图层 '{layer.Id}' 的 scale 必须是大于 0 的有限数值。");
+            }
+        }
+    }
+
+    private static void ValidateOutputs(ProjectDocument document)
+    {
+        ProjectOutputs outputs = document.Outputs;
+        if (string.IsNullOrWhiteSpace(outputs.OutputPath))
+        {
+            throw DiagnosticMessage.InvalidData($"outputs.outputPath 不能为空。");
+        }
+    }
+
+    private static void ValidateThumbnail(string? thumbnailBase64)
+    {
+        if (thumbnailBase64 is null)
+        {
+            return;
+        }
+
+        if (thumbnailBase64.Length == 0 || thumbnailBase64.Length > MaxThumbnailBase64Chars)
+        {
+            throw DiagnosticMessage.InvalidData($"thumbnailPngBase64 长度超出允许范围。");
+        }
+
+        try
+        {
+            _ = Convert.FromBase64String(thumbnailBase64);
+        }
+        catch (FormatException exception)
+        {
+            throw DiagnosticMessage.InvalidData($"thumbnailPngBase64 不是有效的 Base64。", exception);
+        }
+    }
+
+    private static ProjectDocument Deserialize(Stream stream, string sourceName)
+    {
+        try
+        {
+            ProjectDocument? document = JsonSerializer.Deserialize<ProjectDocument>(stream, JsonOptions);
+            if (document is null)
+            {
+                throw DiagnosticMessage.InvalidData($"{sourceName} 不能为空。");
+            }
+
+            Validate(document);
+            // Schema 1 is the accepted older form of schema 2. A file that uses a newer
+            // feature than the version it declares is refused.
+            int required = RequiredSchemaVersion(document);
+            if (required > CurrentSchemaVersion && document.SchemaVersion < required)
+            {
+                throw DiagnosticMessage.InvalidData($"CD-Extra 设置或角度修正表需要 schemaVersion 3。");
+            }
+
+            // Every file version is read as its current equivalent; saving chooses the
+            // version again (3 with a cdExtra block, otherwise 2).
+            return document.SchemaVersion == CurrentSchemaVersion
+                ? document
+                : document with { SchemaVersion = CurrentSchemaVersion };
+        }
+        catch (JsonException exception)
+        {
+            throw DiagnosticMessage.InvalidData(
+                $"{sourceName} 格式有误（第 {exception.LineNumber + 1} 行，第 {exception.BytePositionInLine + 1} 列）：{DiagnosticMessage.Detail(exception)}",
+                exception);
+        }
+    }
+
+    private static void ValidatePositiveFinite(double value, string fieldName)
+    {
+        if (!double.IsFinite(value) || value <= 0)
+        {
+            throw DiagnosticMessage.InvalidData($"{fieldName} 必须是大于 0 的有限数值。");
+        }
+    }
+
+    private static void ValidateFinite(double value, FormattableString fieldName)
+    {
+        if (!double.IsFinite(value))
+        {
+            throw DiagnosticMessage.InvalidData($"{fieldName} 必须是有限数值。");
+        }
+    }
+}
