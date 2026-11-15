@@ -682,6 +682,10 @@ public partial class BurnViewModel : ObservableObject
                 else if (dvd)
                 {
                     DvdStreamingOptions options = ReadDvdStreamingOptions();
+                    // Same warning as the export path: a burn without the angular table shows
+                    // a bent outer edge, and the cause should be visible in the log.
+                    if (options.AngularResidual is not { IsEmpty: false })
+                        _shell.AppendLog(L.T("Angular.MissingOnExport"));
                     options = options with
                     {
                         SourceImageOuterRadiusMm = options.OutputOuterRadiusMm,

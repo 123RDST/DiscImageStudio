@@ -271,6 +271,11 @@ public partial class ExportViewModel : ObservableObject
     private async Task GenerateDvdAsync(string compositePath)
     {
         string output = RequirePath(_state.DvdOutputPath, L.T("请选择 DVD ISO 输出位置。"));
+        // The geometry is baked into the ISO here, correction included. Without a table the
+        // file looks fine but burns with a bent outer edge, so say it out loud instead of
+        // producing it quietly.
+        if (_state.DvdAngularResidual is not { IsEmpty: false })
+            _shell.AppendLog(L.T("Angular.MissingOnExport"));
         DvdStreamingOptions options = new(
             checked((uint)ParameterParser.ParsePositiveLong(_state.DvdTotalSectors, L.T("总扇区数"))),
             ParameterParser.ParsePositiveDouble(_state.DvdInnerRadius, L.T("内半径")),

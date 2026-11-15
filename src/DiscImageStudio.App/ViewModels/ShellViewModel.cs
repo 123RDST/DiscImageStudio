@@ -621,7 +621,7 @@ public partial class ShellViewModel : ObservableObject
             IsDirty = false;
             Design.SetDiscFamily(document.Family);
             LivePreview.SetDiscType(document.Family, clearResult: true);
-            ProjectSession.ApplyToState(document, State);
+            ProjectSession.ApplyKeepingAngular(document, State);
             Design.LoadLayers(document.Layers, preloadedLayers);
         }
         finally

@@ -191,6 +191,7 @@ PresetApplicationTests.Run();
 CalibrationConfirmedFitTests.Run();
 ProjectStoreTests.Run();
 ProjectSessionTests.Run();
+ExportAngularBakeTests.Run();
 FilePlacementProjectTests.Run();
 FilePlacementPreviewTests.Run();
 DesignComposerTests.Run();

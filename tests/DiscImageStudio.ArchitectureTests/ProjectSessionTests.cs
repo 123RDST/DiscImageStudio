@@ -1,4 +1,5 @@
 using DiscImageStudio.Core;
+using DiscImageStudio.Core.Calibration;
 using DiscImageStudio.ViewModels;
 
 internal static class ProjectSessionTests
@@ -7,7 +8,8 @@ internal static class ProjectSessionTests
     {
         TestBluRayRoundtrip();
         TestFamilyIsolation();
-        Console.WriteLine("project-session: passed (BD apply/capture, tone normalization, polarity, family isolation)");
+        TestAngularTableTravelsWithProject();
+        Console.WriteLine("project-session: passed (BD apply/capture, tone normalization, polarity, family isolation, angular table)");
     }
 
     private static void TestBluRayRoundtrip()
@@ -42,6 +44,49 @@ internal static class ProjectSessionTests
         Require(ProjectSession.CaptureTone(document, state).Levels == ToneProfile.TwoLevels,
             "BD capture keeps two levels");
     }
+
+
+    /// <summary>A project carries the measured angular table, and opening one written before
+    /// that field existed must not erase the table already loaded: exporting or burning from
+    /// the emptied state bakes a bent outer edge into the disc.</summary>
+    private static void TestAngularTableTravelsWithProject()
+    {
+        AngularResidualTable table = AngularResidualTable.Create(
+        [
+            new AngularResidualPoint(0.0, 0.0),
+            new AngularResidualPoint(0.5, 0.012),
+            new AngularResidualPoint(1.0, 0.023),
+        ]);
+
+        DiscParametersState source = new();
+        source.DvdAngularResidual = table;
+        ProjectDocument withTable = Document(
+            ProjectDocument.DvdFamily,
+            new ProjectGeometry(24.173255717923812, 57.9139952472366, 2_298_496,
+                AngularResidual: [.. table.Points]),
+            new ProjectOutputs(@"C://out//dvd.iso", false, string.Empty, "DVD_IMAGE", false),
+            ToneProfile.LegacyBinary,
+            BluRay: null);
+        ProjectGeometry captured = ProjectSession.CaptureGeometry(withTable, source);
+        Require(captured.AngularResidual is { Count: 3 }, "the measured table is captured with the project");
+
+        DiscParametersState reopened = new();
+        ProjectSession.ApplyToState(withTable with { Geometry = captured }, reopened);
+        Require(reopened.DvdAngularResidual is { IsEmpty: false } restored && restored.Points.Count == 3,
+            "reopening restores the table");
+
+        // A legacy project (no angular field) must keep the loaded table instead of clearing it.
+        DiscParametersState loaded = new() { DvdAngularResidual = table };
+        ProjectDocument legacy = withTable with
+        {
+            Geometry = new ProjectGeometry(24.173255717923812, 57.9139952472366, 2_298_496),
+        };
+        ProjectSession.ApplyKeepingAngular(legacy, loaded);
+        Require(loaded.DvdAngularResidual is { IsEmpty: false },
+            "opening a project without a table keeps the loaded one");
+        Require(loaded.DvdAngularResidualSource.Length > 0, "and labels where the kept table came from");
+    }
+
 
     private static void TestFamilyIsolation()
     {

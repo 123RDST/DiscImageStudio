@@ -113,6 +113,23 @@ internal static class ProjectSession
         }
     }
 
+    /// <summary>Opening a project: same as <see cref="ApplyToState"/> except that a project
+    /// written without an angular table keeps the one already loaded. That table describes the
+    /// drive rather than the project, and clearing it silently bends the outer edge of every
+    /// pattern burned afterwards — the measured correction has to survive the open.</summary>
+    public static void ApplyKeepingAngular(ProjectDocument document, DiscParametersState state)
+    {
+        AngularResidualTable? carried = state.DvdAngularResidual;
+        ApplyToState(document, state);
+        if (document.Family is OpticalDiscFamily.Dvd
+            && document.Geometry.AngularResidual is not { Count: > 0 }
+            && carried is { IsEmpty: false })
+        {
+            state.DvdAngularResidual = carried;
+            state.DvdAngularResidualSource = L.T("Angular.KeptFromSession");
+        }
+    }
+
     public static ProjectGeometry CaptureGeometry(ProjectDocument current, DiscParametersState state)
     {
         switch (current.Family)

@@ -4,6 +4,8 @@
 
 ### 中文
 
+- 修正「精标图案是直的、导出 ISO 刻出来却弯」：工程文件里没有角度表时，打开工程会把已加载的角度表清空，导出/刻录便在没有修正的情况下落盘（`*.iso.json` 里 `angularResidual` 为 null 即为证据）。现在打开工程会保留已加载的表并在标定页标注来源。
+- 导出与流式刻录在没有角度表时会在任务日志里明确提示，不再静默生成外圈弯曲的图案。
 - 辅助标定页新增「角度修正」卡片：用折线画出现有角度表（横轴为归一化半径，纵轴为角度偏差），标题下注明点数、来源（精细标定 / 某个预设 / 工程文件）与角度范围；没有表时明确显示「未标定：外圈可能出现 U 形线」。
 - 角度表与来源绑定：精细标定、载入预设、打开工程时都会更新来源标注，便于区分多张不同的表。
 - 修正刻录时角度修正确实未生效的问题：应用一键标定结果时不再清空角度修正表。该表描述主轴偏心与转速误差，与内外半径无关；此前被清空后外圈会重新出现 U 形线，现在保留并在日志里报告点数或「未标定」提醒。
@@ -33,6 +35,8 @@
 
 ### English
 
+- Fixed "the calibration pattern is straight but the exported ISO burns bent": opening a project that stores no angular table used to clear the loaded one, so the export was generated with no correction (visible as `angularResidual: null` in the `*.iso.json` sidecar). Opening a project now keeps the loaded table and labels its source.
+- Export and streaming burn log an explicit warning when no table is loaded instead of quietly producing a bent outer edge.
 - A new "Angular correction" card on the calibration page draws the loaded table as a curve (normalized radius across, angle error up) and states the point count, where it came from (fine calibration, a named preset, or the project file) and its range. With no table it says so and warns about the outer-edge U lines.
 - The table now carries its provenance: fine calibration, preset loading and project opening all update the label, so several tables are distinguishable.
 - Fixed the angular correction not taking effect on burns: applying a one-click timing result no longer clears the correction table. The table describes spindle eccentricity and speed error, not the radii; clearing it brought the outer-edge U lines back. It is kept, and the log reports either the point count or a "not measured" hint.

@@ -778,5 +778,23 @@
     "tr": "proje dosyası",
     "es": "archivo de proyecto",
     "cs": "soubor projektu"
+  },
+  "Angular.KeptFromSession": {
+    "zh-CN": "沿用当前表（本工程未保存角度表）",
+    "en": "current table kept (this project stores none)",
+    "zh-TW": "沿用目前表（本專案未儲存角度表）",
+    "ja": "現在の表を継続（このプロジェクトには保存されていません）",
+    "tr": "mevcut tablo korundu (bu projede kayıtlı değil)",
+    "es": "se conserva la tabla actual (el proyecto no guarda ninguna)",
+    "cs": "použita stávající tabulka (projekt žádnou neukládá)"
+  },
+  "Angular.MissingOnExport": {
+    "zh-CN": "当前没有角度修正表：生成/刻录的图案外圈可能出现 U 形线或弯折。建议先做一次精细标定，或载入带表的预设。",
+    "en": "No angular correction table is loaded: the outer rings may come out with U-shaped lines or kinks. Run a fine calibration, or load a preset that carries one.",
+    "zh-TW": "目前沒有角度修正表：產生/燒錄的圖案外圈可能出現 U 形線或彎折。建議先做一次精細標定，或載入帶表的預設。",
+    "ja": "角度補正表がありません。外周に U 字状の線や折れが現れる可能性があります。微調整校正を行うか、表を含むプリセットを読み込んでください。",
+    "tr": "Açı düzeltme tablosu yüklü değil: dış halkalarda U biçimli çizgiler veya kırılmalar oluşabilir. İnce kalibrasyon yapın veya tablo içeren bir ön ayar yükleyin.",
+    "es": "No hay tabla de corrección angular: los anillos exteriores pueden salir con líneas en U o quiebros. Haga una calibración fina o cargue un ajuste que la incluya.",
+    "cs": "Není načtena tabulka úhlové korekce: čáry na vnějším okraji mohou být zdeformované. Proveďte jemnou kalibraci nebo načtěte předvolbu s tabulkou."
   }
 }
