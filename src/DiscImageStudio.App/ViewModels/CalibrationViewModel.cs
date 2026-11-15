@@ -59,6 +59,7 @@ public partial class CalibrationViewModel : ObservableObject
         InitializeCapacityCommands();
         InitializeTimingCommands();
         RefreshCoarseSetup();
+        RefreshAngularChart();
         shell.BusyChanged += () => { OnPropertyChanged(nameof(IsBusy)); RefreshCommands(); };
         // The target is a snapshot. Edits here change the setup for the next target.
         state.PropertyChanged += (_, change) =>
@@ -71,6 +72,10 @@ public partial class CalibrationViewModel : ObservableObject
             if (change.PropertyName is nameof(state.CdSectors) or nameof(state.DvdTotalSectors) or nameof(state.BdTotalSectors)
                 or nameof(state.CdUsableSectors) or nameof(state.DvdUsableSectors) or nameof(state.BdUsableSectors))
                 CapacityStatus = string.Empty;
+            // The curve and its caption have to follow the table wherever it is replaced —
+            // fine calibration, a preset, or a project file all land on these two properties.
+            if (change.PropertyName is nameof(state.DvdAngularResidual) or nameof(state.DvdAngularResidualSource))
+                RefreshAngularChart();
         };
     }
 
@@ -354,7 +359,52 @@ public partial class CalibrationViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(HasAngularResidual));
         OnPropertyChanged(nameof(AngularResidualDiscHint));
+        RefreshAngularChart();
     }
+
+    private const double AngularChartWidth = 268;
+    private const double AngularChartHeight = 64;
+
+    /// <summary>Polyline for the correction curve: normalized radius across, angle in degrees up.
+    /// Empty when no table is loaded, which is what the caption says too.</summary>
+    public System.Windows.Media.PointCollection AngularResidualChartPoints { get; private set; } = [];
+    public string AngularResidualCaption { get; private set; } = string.Empty;
+    public bool HasAngularResidualChart => _state.DvdAngularResidual is { IsEmpty: false };
+
+    private void RefreshAngularChart()
+    {
+        if (_state.DvdAngularResidual is not { IsEmpty: false } table)
+        {
+            AngularResidualChartPoints = [];
+            AngularResidualCaption = L.T("Angular.None");
+        }
+        else
+        {
+            IReadOnlyList<AngularResidualPoint> points = table.Points;
+            double min = points.Min(point => point.Radians);
+            double max = points.Max(point => point.Radians);
+            double span = Math.Max(max - min, 1e-9);
+            var chart = new System.Windows.Media.PointCollection(points.Count);
+            foreach (AngularResidualPoint point in points)
+            {
+                double x = Math.Clamp(point.X, 0, 1) * AngularChartWidth;
+                double y = AngularChartHeight - (point.Radians - min) / span * AngularChartHeight;
+                chart.Add(new Point(x, y));
+            }
+            AngularResidualChartPoints = chart;
+            string source = string.IsNullOrWhiteSpace(_state.DvdAngularResidualSource)
+                ? L.T("Angular.FromFineHint")
+                : _state.DvdAngularResidualSource;
+            AngularResidualCaption = L.Format("Angular.Summary", points.Count, source,
+                Degrees(min), Degrees(max));
+        }
+        OnPropertyChanged(nameof(AngularResidualChartPoints));
+        OnPropertyChanged(nameof(AngularResidualCaption));
+        OnPropertyChanged(nameof(HasAngularResidualChart));
+    }
+
+    private static string Degrees(double radians) =>
+        (radians * 180 / Math.PI).ToString("+0.00;-0.00;0.00", CultureInfo.CurrentCulture);
 
     private void RefreshApplyParametersState()
     {
@@ -807,7 +857,11 @@ public partial class CalibrationViewModel : ObservableObject
         // The cubic fit reports what is left over. Keep it with the parameters so saving the
         // preset later carries the measured curvature the three coefficients cannot express.
         if (p.Kind == CalibrationDiscKind.Dvd && _fit?.AngularResidual is { IsEmpty: false } residual)
+        {
             _state.DvdAngularResidual = residual;
+            _state.DvdAngularResidualSource = L.Format(
+                "Angular.FromFine", DateTime.Now.ToString("MM-dd HH:mm", CultureInfo.CurrentCulture));
+        }
         NotifyAngularResidualDisc();
         string ri = p.InnerRadiusMm.ToString("G17", CultureInfo.InvariantCulture);
         string ro = p.OuterRadiusMm.ToString("G17", CultureInfo.InvariantCulture);
@@ -817,13 +871,6 @@ public partial class CalibrationViewModel : ObservableObject
 
     /// <summary>Drops the working angular table because the radii it was fitted against just
     /// changed. Saved presets keep their own tables — loading a preset restores its table.</summary>
-    internal bool ClearAngularResidual()
-    {
-        if (_state.DvdAngularResidual is not { IsEmpty: false }) return false;
-        _state.DvdAngularResidual = AngularResidualTable.Empty;
-        NotifyAngularResidualDisc();
-        return true;
-    }
 
     private void WriteSetupParameters(CalibrationParameters p)
     {

@@ -55,6 +55,9 @@ internal static class ProjectSession
                 state.DvdAngularResidual = geometry.AngularResidual is { Count: > 0 } angular
                     ? AngularResidualTable.Create(angular)
                     : null;
+                state.DvdAngularResidualSource = geometry.AngularResidual is { Count: > 0 }
+                    ? L.T("Angular.FromProject")
+                    : string.Empty;
                 state.DvdOutputPath = outputs.OutputPath;
                 DiscParametersState.LoadSources(state.DvdDataSources, outputs.DataSources, outputs.DataDirectory);
                 state.DvdFilesAtOuterRing = outputs.FilesAtOuterRing;

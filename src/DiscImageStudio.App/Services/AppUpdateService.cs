@@ -72,13 +72,17 @@ internal sealed class AppUpdateService
 
     internal async Task<AppUpdateCheck?> CheckAsync(CancellationToken cancellationToken)
     {
+        // Suites construct the shell, which asks for updates on load; without this the whole
+        // test run would depend on the network and on a release existing.
+        if (Environment.GetEnvironmentVariable("DIS_IMAGE_STUDIO_SKIP_UPDATE_CHECK") == "1") return null;
         EnsureSupportedInstallation();
         string runtimeIdentifier = GetSupportedRuntimeIdentifier()!;
-        string json = await FetchManifestAsync(cancellationToken).ConfigureAwait(false);
-        return ParseCheck(json, CurrentVersion, runtimeIdentifier);
+        string? json = await FetchManifestAsync(cancellationToken).ConfigureAwait(false);
+        // No release published yet is not an error: it just means nothing newer exists.
+        return json is null ? null : ParseCheck(json, CurrentVersion, runtimeIdentifier);
     }
 
-    private static async Task<string> FetchManifestAsync(CancellationToken cancellationToken)
+    private static async Task<string?> FetchManifestAsync(CancellationToken cancellationToken)
     {
         Exception? lastFailure = null;
         for (int attempt = 0; attempt < 2; attempt++)
@@ -93,6 +97,12 @@ internal sealed class AppUpdateService
                 using HttpResponseMessage response = await Client
                     .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
                     .ConfigureAwait(false);
+                if (response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Gone)
+                {
+                    // A repository without a published release answers 404 here.
+                    return null;
+                }
+
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new AppUpdateException("未找到更新信息。");

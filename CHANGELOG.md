@@ -4,6 +4,10 @@
 
 ### 中文
 
+- 辅助标定页新增「角度修正」卡片：用折线画出现有角度表（横轴为归一化半径，纵轴为角度偏差），标题下注明点数、来源（精细标定 / 某个预设 / 工程文件）与角度范围；没有表时明确显示「未标定：外圈可能出现 U 形线」。
+- 角度表与来源绑定：精细标定、载入预设、打开工程时都会更新来源标注，便于区分多张不同的表。
+- 修正刻录时角度修正确实未生效的问题：应用一键标定结果时不再清空角度修正表。该表描述主轴偏心与转速误差，与内外半径无关；此前被清空后外圈会重新出现 U 形线，现在保留并在日志里报告点数或「未标定」提醒。
+- 测试运行提速：测试程序支持 `--shard=i/n`、`--only=<名字>`、`--timing`，新增 `tools/run-tests.sh` 以多进程并行跑全部套件；边界拟合套件内部改为并行。全量用时从 416 秒降到约 230 秒（6 分片）。
 - 更新源与关于页仓库地址改为本仓库（123RDST/DiscImageStudio），首次对外发布。
 - 修正标定页方法选择跳变：从「一键标定」点「粗标定」（或边界标定）时，原先会先切方法、后切阶段，导致单选组短暂点亮「精细标定」并停留。现在先应用阶段再切方法，四个选项的选中状态随阶段立即同步。
 - 辅助标定的方法选择并成一行：一键标定、粗标定、边界标定、精细标定共用一个单选组，不再单独显示「图案标定」标题；点任一阶段即切回图案流程。同时修掉「开始标定」按钮文字被固定行高裁切的问题。
@@ -29,6 +33,10 @@
 
 ### English
 
+- A new "Angular correction" card on the calibration page draws the loaded table as a curve (normalized radius across, angle error up) and states the point count, where it came from (fine calibration, a named preset, or the project file) and its range. With no table it says so and warns about the outer-edge U lines.
+- The table now carries its provenance: fine calibration, preset loading and project opening all update the label, so several tables are distinguishable.
+- Fixed the angular correction not taking effect on burns: applying a one-click timing result no longer clears the correction table. The table describes spindle eccentricity and speed error, not the radii; clearing it brought the outer-edge U lines back. It is kept, and the log reports either the point count or a "not measured" hint.
+- Faster test runs: the runner accepts `--shard=i/n`, `--only=<name>` and `--timing`, `tools/run-tests.sh` runs all suites as parallel processes, and the boundary fitter suite runs its sections in parallel. Full run drops from 416 s to about 230 s with six shards.
 - Update feed and the About page now point at this repository (123RDST/DiscImageStudio); first public release.
 - Fixed the method selector jumping: leaving one-click calibration for a coarse or boundary stage switched the method before the stage, which lit the fine radio and left it selected. The stage is now applied first, and all four options follow it immediately.
 - Calibration method selection is one row: one-click, coarse, boundary and fine share a single radio group, the separate "Pattern calibration" title is gone, and picking a stage switches back to the photo flow. The "Start calibration" label is no longer clipped by the fixed button height.

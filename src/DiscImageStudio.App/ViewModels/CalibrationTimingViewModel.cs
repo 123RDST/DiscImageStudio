@@ -471,10 +471,13 @@ public partial class CalibrationViewModel
         try
         {
             WriteSetupParameters(TimingParameters(result));
-            // Timing describes geometry only, so an angular table measured against another
-            // disc no longer matches these radii. Saved presets keep their own tables; only
-            // the working set is cleared, and loading a preset brings its table back.
-            if (ClearAngularResidual()) _shell.AppendLog(L.T("Timing.AngularCleared") + Environment.NewLine);
+            // The angular table describes the spindle (eccentricity and speed error), not the
+            // radii the timing run measured. Dropping it here silently brought the outer-edge
+            // U-shaped lines back, so it is kept and reported instead.
+            if (Parameters.DvdAngularResidual is { IsEmpty: false } kept)
+                _shell.AppendLog(L.Format("Timing.AngularKept", kept.Points.Count) + Environment.NewLine);
+            else
+                _shell.AppendLog(L.T("Timing.AngularMissing") + Environment.NewLine);
             SelectStage(CalibrationStage.Fine);
             TimingStatus = _statusMessage = L.T(result.RequiresFineCalibration ? "Timing.AppliedCd" : "Timing.Applied");
             _shell.AppendLog(_statusMessage + Environment.NewLine);

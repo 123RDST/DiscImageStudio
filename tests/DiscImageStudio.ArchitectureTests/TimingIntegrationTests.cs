@@ -51,13 +51,17 @@ internal static class TimingIntegrationTests
                 "turning the cubic fit off falls back to the constant-pitch radii");
             calibration.UseCubicPitch = true;
 
-            // A timing result is geometry only, so the working angular table — measured against
-            // the previous radii — has to go. Saved presets keep their own copy.
+            // The angular table describes the spindle, not the radii, so applying a timing
+            // result must keep it: dropping it silently brought the outer-edge U lines back.
             calibration.Parameters.DvdAngularResidual =
                 AngularResidualTable.Create([new(0, 0), new(.5, .01), new(1, .02)]);
             Require(calibration.HasAngularResidual, "a table measured by the fine stage is visible in the setup");
+            Require(calibration.AngularResidualChartPoints.Count == 3
+                && calibration.AngularResidualCaption.Contains('3'),
+                "the loaded table is drawn as a curve and labelled with its point count");
             calibration.ApplyTimingResultCommand.Execute(null);
-            Require(!calibration.HasAngularResidual, "applying a timing result clears the working angular table");
+            Require(calibration.HasAngularResidual,
+                "applying a timing result keeps the measured angular table");
 
             // The advanced disclosure is the measurement plan: the sliders must reach the
             // calibrator, and the window must actually bound where the rungs are taken.

@@ -698,13 +698,85 @@
     "es": "{0}%",
     "cs": "{0} %"
   },
-  "Timing.AngularCleared": {
-    "zh-CN": "已清空当前角度修正表：它是对另一组半径测得的，需要时可用精细标定重新生成；已保存的预设不受影响，重新载入预设即可恢复其中的表。",
-    "en": "Cleared the working angular correction table: it was measured against another set of radii. Fine calibration can rebuild it; saved presets are untouched, and loading a preset restores its table.",
-    "zh-TW": "已清空目前角度修正表：它是對另一組半徑測得的，需要時可用精細標定重新產生；已儲存的預設不受影響，重新載入預設即可還原其中的表。",
-    "ja": "現在の角度補正テーブルを消去しました。別の半径で測ったものなので、必要なら微調整校正で作り直せます。保存済みのプリセットは影響を受けず、読み込めば元のテーブルが戻ります。",
-    "tr": "Geçerli açı düzeltme tablosu temizlendi: başka bir yarıçap kümesine göre ölçülmüştü, gerekirse ince kalibrasyonla yeniden üretilebilir. Kayıtlı ön ayarlar etkilenmez; bir ön ayar yüklediğinizde tablosu geri gelir.",
-    "es": "Se borró la tabla de corrección angular en uso: se midió contra otro conjunto de radios. La calibración fina puede regenerarla; los ajustes guardados no cambian y al cargar uno vuelve su tabla.",
-    "cs": "Pracovní tabulka úhlové korekce byla smazána: byla měřena pro jiné poloměry. Jemné kalibrace ji umí vytvořit znovu; uložené předvolby zůstávají nedotčené a po načtení předvolby se její tabulka vrátí."
+  "Timing.AngularKept": {
+    "zh-CN": "保留上次测得的 {0} 点角度修正：它描述主轴偏心与转速误差，与半径无关，外圈对齐依赖它。",
+    "en": "Kept the {0}-point angular correction measured earlier: it describes spindle eccentricity and speed error, not the radii, and the outer ring depends on it.",
+    "zh-TW": "保留上次測得的 {0} 點角度修正：它描述主軸偏心與轉速誤差，與半徑無關，外圈對齊依賴它。",
+    "ja": "以前に測定した {0} 点の角度補正を保持しました。これはスピンドルの偏心と回転誤差を表すもので、半径には依存しません。外周の位置合わせはこれに依存します。",
+    "tr": "Daha önce ölçülen {0} noktalı açı düzeltmesi korundu: mil eksantrikliğini ve hız hatasını tanımlar, yarıçaplara bağlı değildir; dış halkanın hizası buna bağlıdır.",
+    "es": "Se conservó la corrección angular de {0} puntos medida antes: describe la excentricidad del eje y el error de velocidad, no los radios, y el anillo exterior depende de ella.",
+    "cs": "Ponechána dříve změřená úhlová korekce ({0} bodů): popisuje excentricitu vřetene a chybu otáček, nikoli poloměry; vnější prstenec na ní závisí."
+  },
+  "Timing.AngularMissing": {
+    "zh-CN": "当前没有角度修正表：外圈可能出现 U 形线，建议在精细标定里测一次。",
+    "en": "No angular correction table is loaded: the outer ring may show U-shaped lines. Measure it once in fine calibration.",
+    "zh-TW": "目前沒有角度修正表：外圈可能出現 U 形線，建議在精細標定裡測一次。",
+    "ja": "角度補正テーブルがありません。外周に U 字状の線が出る可能性があります。微調整校正で一度測定してください。",
+    "tr": "Açı düzeltme tablosu yok: dış halkada U biçimli çizgiler görünebilir. İnce kalibrasyonda bir kez ölçün.",
+    "es": "No hay tabla de corrección angular: el anillo exterior puede mostrar líneas en U. Mídela una vez en la calibración fina.",
+    "cs": "Není načtena žádná tabulka úhlové korekce: vnější prstenec může vykazovat čáry ve tvaru U. Změřte ji jednou v jemné kalibraci."
+  },
+  "Angular.Table": {
+    "zh-CN": "角度修正",
+    "en": "Angular correction",
+    "zh-TW": "角度修正",
+    "ja": "角度補正",
+    "tr": "Açı düzeltmesi",
+    "es": "Corrección angular",
+    "cs": "Úhlová korekce"
+  },
+  "Angular.None": {
+    "zh-CN": "未标定：外圈可能出现 U 形线，建议做一次精细标定。",
+    "en": "Not measured: the outer ring may show U-shaped lines. Run a fine calibration once.",
+    "zh-TW": "未標定：外圈可能出現 U 形線，建議做一次精細標定。",
+    "ja": "未測定です。外周に U 字状の線が出る可能性があります。微調整校正を一度行ってください。",
+    "tr": "Ölçülmedi: dış halkada U biçimli çizgiler görünebilir. Bir kez ince kalibrasyon yapın.",
+    "es": "Sin medir: el anillo exterior puede mostrar líneas en U. Haga una calibración fina.",
+    "cs": "Nezměřeno: na vnějším okraji se mohou objevit čáry ve tvaru U. Proveďte jednou jemnou kalibraci."
+  },
+  "Angular.Summary": {
+    "zh-CN": "{0} 点 · 来源：{1} · {2}° ~ {3}°",
+    "en": "{0} points · from {1} · {2}° to {3}°",
+    "zh-TW": "{0} 點 · 來源：{1} · {2}° ~ {3}°",
+    "ja": "{0} 点 · 取得元：{1} · {2}° ~ {3}°",
+    "tr": "{0} nokta · kaynak: {1} · {2}° – {3}°",
+    "es": "{0} puntos · origen: {1} · {2}° a {3}°",
+    "cs": "{0} bodů · zdroj: {1} · {2}° až {3}°"
+  },
+  "Angular.FromFine": {
+    "zh-CN": "精细标定 {0}",
+    "en": "fine calibration {0}",
+    "zh-TW": "精細標定 {0}",
+    "ja": "微調整校正 {0}",
+    "tr": "ince kalibrasyon {0}",
+    "es": "calibración fina {0}",
+    "cs": "jemná kalibrace {0}"
+  },
+  "Angular.FromFineHint": {
+    "zh-CN": "精细标定",
+    "en": "fine calibration",
+    "zh-TW": "精細標定",
+    "ja": "微調整校正",
+    "tr": "ince kalibrasyon",
+    "es": "calibración fina",
+    "cs": "jemná kalibrace"
+  },
+  "Angular.FromPreset": {
+    "zh-CN": "预设「{0}」",
+    "en": "preset “{0}”",
+    "zh-TW": "預設「{0}」",
+    "ja": "プリセット「{0}」",
+    "tr": "ön ayar “{0}”",
+    "es": "ajuste “{0}”",
+    "cs": "předvolba „{0}“"
+  },
+  "Angular.FromProject": {
+    "zh-CN": "工程文件",
+    "en": "project file",
+    "zh-TW": "工程檔案",
+    "ja": "プロジェクトファイル",
+    "tr": "proje dosyası",
+    "es": "archivo de proyecto",
+    "cs": "soubor projektu"
   }
 }

@@ -178,6 +178,9 @@ public partial class DiscParametersState : ObservableObject
     /// from the radius/pitch text fields, so editing those by hand keeps it, while selecting
     /// another preset replaces it.</summary>
     [ObservableProperty] private AngularResidualTable? _dvdAngularResidual;
+    /// <summary>Where the loaded correction table came from (fine calibration, a preset, or the
+    /// project file), so the UI can say which of several tables is in use.</summary>
+    [ObservableProperty] private string _dvdAngularResidualSource = "";
     [ObservableProperty] private BluRayDiscPreset _selectedBluRayPreset = ManualBluRayPreset;
 
     // Tone mapping shared by both families. New projects open at 75% dither: enough to keep
@@ -919,7 +922,13 @@ public partial class DiscParametersState : ObservableObject
             DvdPresetHint = preset.Description;
             // The manual pseudo-preset means "the user is editing the fields": keep the measured
             // correction instead of dropping it, and let a real catalog entry replace it.
-            if (!preset.IsCustom) DvdAngularResidual = preset.AngularResidual;
+            if (!preset.IsCustom)
+            {
+                DvdAngularResidual = preset.AngularResidual;
+                DvdAngularResidualSource = preset.AngularResidual is { IsEmpty: false }
+                    ? L.Format("Angular.FromPreset", preset.DisplayName)
+                    : string.Empty;
+            }
             if (writeGeometry && !preset.IsCustom)
             {
                 DvdTotalSectors = preset.TotalSectors.ToString(System.Globalization.CultureInfo.InvariantCulture);

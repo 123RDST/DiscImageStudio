@@ -565,8 +565,9 @@ internal static class UpdateTests
           }
           """;
 
+    // Derive from the service constant so a repository move cannot leave the fixture behind.
     private static string AssetUrl(string version = "1.6.0") =>
-        "https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio/releases/download/v" + version
+        AppUpdateService.RepositoryUrl + "/releases/download/v" + version
         + "/DiscImageStudio-v" + version + "-win-x64.exe";
 
     private static AppVersion Version(string text)

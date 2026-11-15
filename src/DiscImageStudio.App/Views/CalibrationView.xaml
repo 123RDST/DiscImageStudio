@@ -68,6 +68,29 @@
                     </StackPanel>
                 </RadioButton>
             </WrapPanel>
+            <!-- Which correction table is loaded, and what it looks like: that table decides
+                 whether the outer edge lines up, so it gets a visible curve instead of a log
+                 line nobody reads. The caption names the source, because several tables can
+                 exist at once (fine calibration, each preset, the project file). -->
+            <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,0,0,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Canvas Width="268" Height="64" ClipToBounds="True" VerticalAlignment="Center"
+                            Background="Transparent">
+                        <Polyline Points="{Binding AngularResidualChartPoints}"
+                                  Stroke="{DynamicResource PrimaryBrush}" StrokeThickness="1.5"
+                                  StrokeLineJoin="Round" />
+                    </Canvas>
+                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="{loc:Text Angular.Table}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding AngularResidualCaption}" Margin="0,2,0,0"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </Border>
         </StackPanel>
         <!-- One scroll surface: in the wide layout the work area is exactly the viewport tall
              (the step column is an accordion that never grows past it), in the narrow layout

@@ -4,20 +4,66 @@ internal static class CalibrationBoundaryFitterTests
 {
     internal static void Run()
     {
-        foreach (var kind in Enum.GetValues<CalibrationDiscKind>())
+        // Fifteen independent fits, each a pure function of its own parameters: run them in
+        // parallel, the single-threaded pass dominated the whole suite at ~3.5 minutes.
+        var combinations = Enum.GetValues<CalibrationDiscKind>()
+            .SelectMany(kind => new[] { (.005, .005), (-.005, -.005), (.005, -.005), (-.005, .005), (0d, 0d) }
+                .Select(offset => (Kind: kind, Inner: offset.Item1, Outer: offset.Item2)))
+            .ToArray();
+        var failures = new System.Collections.Concurrent.ConcurrentBag<string>();
+        Parallel.ForEach(combinations, combination =>
         {
-            foreach (var offsets in new[] { (.005, .005), (-.005, -.005), (.005, -.005), (-.005, .005), (0d, 0d) })
-                CheckLocalSegments(kind, offsets.Item1, offsets.Item2);
+            try
+            {
+                CheckLocalSegments(combination.Kind, combination.Inner, combination.Outer);
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception.Message);
+            }
+        });
+        if (!failures.IsEmpty)
+        {
+            throw new InvalidOperationException(failures.OrderBy(message => message, StringComparer.Ordinal).First());
         }
-        CheckContinuousBoundaries();
-        CheckDrawingOrderIndependence();
-        CheckWideAnglePieces();
-        CheckWideNearCircularPieces();
-        CheckWavyBoundaryWindows();
-        CheckWavyBoundaryNoise();
-        CheckNativeDvdNoiseAndDuplication();
-        CheckInputGuards();
+        // The remaining sections are independent too: the worst one alone took 48 s, so they
+        // run together and the suite finishes in about the slowest section.
+        (string Name, Action Run)[] sections =
+        [
+            ("continuous", CheckContinuousBoundaries),
+            ("drawing-order", CheckDrawingOrderIndependence),
+            ("wide-angle", CheckWideAnglePieces),
+            ("wide-near-circular", CheckWideNearCircularPieces),
+            ("wavy-windows", CheckWavyBoundaryWindows),
+            ("wavy-noise", CheckWavyBoundaryNoise),
+            ("native-dvd-noise", CheckNativeDvdNoiseAndDuplication),
+            ("input-guards", CheckInputGuards),
+        ];
+        var sectionFailures = new System.Collections.Concurrent.ConcurrentBag<string>();
+        Parallel.ForEach(sections, section =>
+        {
+            try
+            {
+                section.Run();
+            }
+            catch (Exception exception)
+            {
+                sectionFailures.Add(section.Name + ": " + exception.Message);
+            }
+        });
+        if (!sectionFailures.IsEmpty)
+        {
+            throw new InvalidOperationException(
+                sectionFailures.OrderBy(message => message, StringComparer.Ordinal).First());
+        }
         Console.WriteLine("half-disc boundary fitting: independent CD/DVD/BD spirals, separated 40-degree pieces, sign reversals, straight edges and draft guards passed");
+    }
+
+private static void Time(string label, Action action)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        action();
+        Console.WriteLine($"section {label} {watch.ElapsedMilliseconds} ms");
     }
 
     private static CalibrationParameters Parameters(CalibrationDiscKind kind) => kind switch

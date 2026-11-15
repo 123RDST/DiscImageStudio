@@ -233,64 +233,115 @@ DvdStableRegionTests.Run();
 DvdSampleReuseTests.Run();
 AppCubicTests.Run();
 AppCubicMediaTests.Run();
-CalibrationEncoderTests.Run();
-CalibrationCoreTests.Run();
-CalibrationHalfDiscArtworkTests.Run();
-CalibrationBoundaryFitterTests.Run();
-CalibrationRingFitterTests.Run();
-CalibrationClockArtworkTests.Run();
-CalibrationWideBandArtworkTests.Run();
-CalibrationRadialArcArtworkTests.Run();
-CalibrationRadialArcFitterTests.Run();
-CalibrationSectorScaleTests.Run();
-CalibrationClockReaderTests.Run();
-CalibrationAngleSweepReaderTests.Run();
-CalibrationStandaloneTests.Run();
-CalibrationMediaReadTests.Run();
-CalibrationCubicPitchTests.Run();
-AngularResidualTests.Run();
-CalibrationCrossExtensionTests.Run();
-BluRayObservedCurveRegressionTests.Run();
-CalibrationShapeSeedTests.Run();
-CalibrationPhotoTests.Run();
-CalibrationPhotoCanvasTests.Run();
-DesignCanvasZoomTests.Run();
-LayerPanelTests.Run();
-ImageDropTests.Run();
-CalibrationBurnWorkflowTests.Run();
-CalibrationBurnSourceTests.Run();
-BurnJobDockTests.Run();
-ImageJobWorkflowTests.Run();
-DiscImageGenerationApiTests.Run();
-DvdTypedOperationTests.Run();
-JobDiagnosticsTests.Run();
-ViewModelFailureDiagnosticsTests.Run();
-CalibrationOutputPublisherTests.Run();
-CalibrationPhotoViewModelTests.Run();
-CalibrationThreeStageTests.Run();
-CalibrationBoundaryWorkflowTests.Run();
-CalibrationFitLocalizationTests.Run();
-PopupLocalizationTests.Run();
-AppSettingsTests.Run();
-FilesystemMetadataBudgetTests.Run();
-AutoReadmeTests.Run();
-RecentsDeleteTests.Run();
-DriveTimingCalibrationTests.Run();
-OpticalReadSessionTests.Run();
-CalibrationDataImageTests.Run();
-TimingIntegrationTests.Run();
-DriveTimingCubicFitTests.Run();
-DesignDataRegionTests.Run();
-LocalizationTests.Run();
-ThemePaletteTests.Run();
-TempFilesCacheTests.Run();
-UpdateTests.Run();
-RelocalizationTests.Run();
-CalibrationReturnButtonTests.Run();
-BurnWriteSpeedSelectionTests.Run();
+var suites = new (string Name, Action Run)[]
+{
+    ("CalibrationEncoderTests", CalibrationEncoderTests.Run),
+    ("CalibrationCoreTests", CalibrationCoreTests.Run),
+    ("CalibrationHalfDiscArtworkTests", CalibrationHalfDiscArtworkTests.Run),
+    ("CalibrationBoundaryFitterTests", CalibrationBoundaryFitterTests.Run),
+    ("CalibrationRingFitterTests", CalibrationRingFitterTests.Run),
+    ("CalibrationClockArtworkTests", CalibrationClockArtworkTests.Run),
+    ("CalibrationWideBandArtworkTests", CalibrationWideBandArtworkTests.Run),
+    ("CalibrationRadialArcArtworkTests", CalibrationRadialArcArtworkTests.Run),
+    ("CalibrationRadialArcFitterTests", CalibrationRadialArcFitterTests.Run),
+    ("CalibrationSectorScaleTests", CalibrationSectorScaleTests.Run),
+    ("CalibrationClockReaderTests", CalibrationClockReaderTests.Run),
+    ("CalibrationAngleSweepReaderTests", CalibrationAngleSweepReaderTests.Run),
+    ("CalibrationStandaloneTests", CalibrationStandaloneTests.Run),
+    ("CalibrationMediaReadTests", CalibrationMediaReadTests.Run),
+    ("CalibrationCubicPitchTests", CalibrationCubicPitchTests.Run),
+    ("AngularResidualTests", AngularResidualTests.Run),
+    ("CalibrationCrossExtensionTests", CalibrationCrossExtensionTests.Run),
+    ("BluRayObservedCurveRegressionTests", BluRayObservedCurveRegressionTests.Run),
+    ("CalibrationShapeSeedTests", CalibrationShapeSeedTests.Run),
+    ("CalibrationPhotoTests", CalibrationPhotoTests.Run),
+    ("CalibrationPhotoCanvasTests", CalibrationPhotoCanvasTests.Run),
+    ("DesignCanvasZoomTests", DesignCanvasZoomTests.Run),
+    ("LayerPanelTests", LayerPanelTests.Run),
+    ("ImageDropTests", ImageDropTests.Run),
+    ("CalibrationBurnWorkflowTests", CalibrationBurnWorkflowTests.Run),
+    ("CalibrationBurnSourceTests", CalibrationBurnSourceTests.Run),
+    ("BurnJobDockTests", BurnJobDockTests.Run),
+    ("ImageJobWorkflowTests", ImageJobWorkflowTests.Run),
+    ("DiscImageGenerationApiTests", DiscImageGenerationApiTests.Run),
+    ("DvdTypedOperationTests", DvdTypedOperationTests.Run),
+    ("JobDiagnosticsTests", JobDiagnosticsTests.Run),
+    ("ViewModelFailureDiagnosticsTests", ViewModelFailureDiagnosticsTests.Run),
+    ("CalibrationOutputPublisherTests", CalibrationOutputPublisherTests.Run),
+    ("CalibrationPhotoViewModelTests", CalibrationPhotoViewModelTests.Run),
+    ("CalibrationThreeStageTests", CalibrationThreeStageTests.Run),
+    ("CalibrationBoundaryWorkflowTests", CalibrationBoundaryWorkflowTests.Run),
+    ("CalibrationFitLocalizationTests", CalibrationFitLocalizationTests.Run),
+    ("PopupLocalizationTests", PopupLocalizationTests.Run),
+    ("AppSettingsTests", AppSettingsTests.Run),
+    ("FilesystemMetadataBudgetTests", FilesystemMetadataBudgetTests.Run),
+    ("AutoReadmeTests", AutoReadmeTests.Run),
+    ("RecentsDeleteTests", RecentsDeleteTests.Run),
+    ("DriveTimingCalibrationTests", DriveTimingCalibrationTests.Run),
+    ("OpticalReadSessionTests", OpticalReadSessionTests.Run),
+    ("CalibrationDataImageTests", CalibrationDataImageTests.Run),
+    ("TimingIntegrationTests", TimingIntegrationTests.Run),
+    ("DriveTimingCubicFitTests", DriveTimingCubicFitTests.Run),
+    ("DesignDataRegionTests", DesignDataRegionTests.Run),
+    ("LocalizationTests", LocalizationTests.Run),
+    ("ThemePaletteTests", ThemePaletteTests.Run),
+    ("TempFilesCacheTests", TempFilesCacheTests.Run),
+    ("UpdateTests", UpdateTests.Run),
+    ("RelocalizationTests", RelocalizationTests.Run),
+    ("CalibrationReturnButtonTests", CalibrationReturnButtonTests.Run),
+    ("BurnWriteSpeedSelectionTests", BurnWriteSpeedSelectionTests.Run),
+};
 
-Console.WriteLine("architecture-selftest: all checks passed");
+// Sharding lets the suites run as independent processes, which is the only safe kind of
+// parallelism here: several suites own process-wide state (WPF host, settings, culture).
+(int shard, int shards, string? only, bool timing) = ParseRunArguments(args);
+int executed = 0;
+for (int index = 0; index < suites.Length; index++)
+{
+    if (only is not null && !suites[index].Name.Contains(only, StringComparison.OrdinalIgnoreCase)) continue;
+    if (shards > 1 && index % shards != shard) continue;
+    if (!timing)
+    {
+        suites[index].Run();
+    }
+    else
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        suites[index].Run();
+        Console.WriteLine($"suite-time {index} {suites[index].Name} {watch.ElapsedMilliseconds}");
+    }
+    executed++;
+}
+Console.WriteLine(shards > 1
+    ? $"architecture-selftest shard {shard}/{shards}: {executed} suites passed"
+    : "architecture-selftest: all checks passed");
 return;
+
+static (int Shard, int Shards, string? Only, bool Timing) ParseRunArguments(string[] arguments)
+{
+    int shard = 0, shards = 1;
+    string? only = null;
+    bool timing = false;
+    for (int index = 0; index < arguments.Length; index++)
+    {
+        string argument = arguments[index];
+        if (argument.StartsWith("--shard=", StringComparison.Ordinal))
+        {
+            string[] parts = argument["--shard=".Length..].Split('/');
+            shard = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
+            shards = int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+        }
+        else if (argument.StartsWith("--only=", StringComparison.Ordinal))
+        {
+            only = argument["--only=".Length..];
+        }
+        else if (argument == "--timing")
+        {
+            timing = true;
+        }
+    }
+    return (shard, shards, only, timing);
+}
 
 static void Equal<T>(T expected, T actual, string name)
     where T : notnull
