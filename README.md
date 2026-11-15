@@ -1,247 +1,269 @@
 <div align="center">
 
-**简体中文** | [繁體中文](README.zh-TW.md) | [English](README.en.md) | [日本語](README.ja.md) | [Türkçe](README.tr.md) | [Español](README.es.md) | [Čeština](README.cs.md)
+# Disc Image Studio · 改进版
 
-![Banner](docs/images/DiscImageStudio_Banner_2.png)
+**把图像刻成光盘盘面可见图案 —— 一张盘完成 DVD 标定，角度修正看得见**
 
-<h2>全能的光盘盘面可见图像生成与刻录工具</h2>
+[![版本 1.6.11](https://img.shields.io/badge/Version-1.6.11-512bd4?style=flat-square)](https://github.com/123RDST/DiscImageStudio/releases/tag/v1.6.11)
+![平台](https://img.shields.io/badge/Platform-Windows%20x64-0078d6?style=flat-square)
+[![测试 55 套件](https://img.shields.io/badge/Tests-55%20suites-success?style=flat-square)](#9-开发与测试)
+[![许可证 GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 
-Disc Image Studio 是一个多平台的光盘盘面图像生成与刻录工具，帮助您使用任何刻录光驱在任何 DVD / CD / 单层蓝光 光盘上刻蚀出肉眼可见的图像。
-
-![.NET 版本](https://img.shields.io/badge/.NET-10.0-512bd4?style=flat-square)
-![运行平台](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-0078d6?style=flat-square)
-![开发语言](https://img.shields.io/badge/Language-C%23-68217A?style=flat-square)
-![GitHub Repo size](https://img.shields.io/github/repo-size/123RDST/DiscImageStudio?style=flat-square&color=3cb371)
-![贡献欢迎](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square)
-[![许可证：GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
-
-<a href="https://discord.gg/7nDs9H3r"><img alt="上游项目的 Discord 社区" src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" height="40"></a>
+[下载 Windows 版](https://github.com/123RDST/DiscImageStudio/releases/tag/v1.6.11) · [更新日志](CHANGELOG.md) · [标定详解](docs/CALIBRATION.md) · [实操教程](docs/CALIBRATION_TUTORIAL.md) · [验证记录](docs/VALIDATION.md)
 
 </div>
 
+> **这是非官方修改版。** 基于 [JiaFeiMiao-K-Cat/DiscImageStudio](https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio) 修改，其上游为 [0xfed/DiscImageStudio](https://github.com/0xfed/DiscImageStudio)。本版与原作者无隶属关系，遵循 GPL-3.0-or-later；需要官方版本请前往上游仓库。
 
-> **本仓库是非官方修改版。** 基于 [JiaFeiMiao-K-Cat/DiscImageStudio](https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio) 修改，其上游为 [0xfed/DiscImageStudio](https://github.com/0xfed/DiscImageStudio)。遵循 GPL-3.0-or-later，与原作者无隶属关系；需要官方版本请前往上游仓库。
+## 目录
 
-## 这个版本多什么
+1. [概述](#1-概述)
+2. [工作原理](#2-工作原理)
+   - [2.1 图案是如何刻进盘面的](#21-图案是如何刻进盘面的)
+   - [2.2 螺旋几何模型](#22-螺旋几何模型)
+   - [2.3 为什么必须标定](#23-为什么必须标定)
+   - [2.4 一键标定：让光驱自己测量](#24-一键标定让光驱自己测量)
+   - [2.5 三次轨距拟合](#25-三次轨距拟合)
+   - [2.6 角度修正表](#26-角度修正表)
+3. [实测数据](#3-实测数据)
+4. [相比原项目改了什么](#4-相比原项目改了什么)
+5. [一键标定怎么用](#5-一键标定怎么用)
+6. [架构](#6-架构)
+7. [下载与运行](#7-下载与运行)
+8. [已知限制](#8-已知限制)
+9. [开发与测试](#9-开发与测试)
+10. [致谢与许可](#10-致谢与许可)
 
-| 功能 | 本版 | 上游原版 |
-| --- | --- | --- |
-| 标定方式 | **一键标定**：自动刻录测量盘、读取扇区相位、拟合、写入参数，一颗按钮走完 | 需要手工拍照描点（图案标定） |
-| 光盘消耗（DVD） | **一张盘**即可得到内外半径 + 三次轨距分布 | 通常需要多张 |
-| 参数调节 | 阶梯数、每阶读取次数、内圈起点、外圈终点四个滑杆 | 固定测量计划 |
-| 角度修正表 | 应用新几何时自动清空旧表，避免串盘；并随工程文件保存 | 仅随预设保存 |
+## 1. 概述
 
----
+光盘刻录机的激光在盘面上留下明暗痕迹（mark），痕迹的疏密沿着螺旋轨道分布——控制每个位置写入的数据，就能让盘面呈现出肉眼可见的图案。本项目把这个原理工程化：图像经影调映射与采样，转换为 CD / DVD / BD 的扇区数据，导出镜像或直接刻录。
 
-## 效果预览
+图案能不能对得准，取决于程序对**这张盘、这台光驱**真实几何的了解程度。原项目的标定流程需要拍照、描点、三个阶段反复换盘；本版的重点是把它换成**由光驱自己测量**，并让修正数据在界面上可见、可追溯：
 
-![](docs/images/case1.jpg)
+- **一键标定（CD/DVD）**：刻一张随机数据测量盘，读回扇区相位，直接拟合内外半径与三次轨距分布，DVD 一张盘得到完整预设参数；
+- **角度修正可视化**：修正表画成曲线，标明点数、来源与角度范围；没有表时明确警告外圈可能出现 U 形线；
+- **CD 音乐 + 图片混合盘**：外圈整盘 DAO 与内圈 CD-Extra 两种布局，已在实体 CD 机上验证播放。
 
-![](docs/images/case2.jpg)
+## 2. 工作原理
 
----
+### 2.1 图案是如何刻进盘面的
 
-## 概述
+光盘以恒定线速度（CLV）旋转，数据沿单条螺旋轨道写入。通道比特（channel bit）是轨道上最小的物理记录单位：
 
-Disc Image Studio 可将一张图片转换成符合 CD、DVD 与单层 BD-R 光盘物理层约束的数据，刻录后将使光盘盘面呈现肉眼可见的图案。
+| 介质 | 通道比特长度 | 每扇区通道比特 | 备注 |
+| --- | ---: | ---: | --- |
+| CD | 1200 mm/s ÷ 4,321,800 Hz ≈ **0.278 µm** | 98 帧 × 588 bit = **57,624** | 读回位置换算含 108 帧导入区偏移 |
+| DVD | **133.3 nm** | **38,688** | 按 16 扇区 ECC 块对齐读取 |
+| BD | — | — | 17PP 调制、LDC-BIS 纠错，本版沿用上游引擎 |
 
-## 界面预览
+生成器把图像沿螺旋按字节顺序写入：图像灰度决定扇区数据的调制结果，mark 密度形成可见明暗。影调模型（`ToneProfile`）统一管理抖动强度（0–100%）、sRGB 线性化、CD 灰阶档位与亮度，生成、流式刻录、读回预览共用同一份映射，保证「预览看到的就是刻出来的」。
 
-![主页：模板与最近工程](docs/images/ui-home.png)
+### 2.2 螺旋几何模型
 
-![设计页：图层画布与影调](docs/images/ui-design.png)
+设通道比特长度为 `b`，从盘心数起的通道比特数为 `n`，则恒定轨距螺旋的解析几何为：
 
-![导出页：浅色主题与输出镜像](docs/images/ui-export.png)
+```
+半径：r(n) = b · √(u² + v·n/π)
+转角：θ(n) = 2n / (√(u² + v·n/π) + u)
 
----
+其中 u = r₀/b（内半径），v = p/b（轨距），N = 总扇区数，β = 每扇区比特数
+外半径：r₁ = b · √(u² + v·N·β/π)
+```
 
-## 快速开始
+实际盘片的轨距并非恒定。本项目用三次多项式描述其随归一化半径 `x = (r − r₀)/(r₁ − r₀)` 的变化：
 
-Windows x64 下载以 `win-x64.exe` 结尾的文件；Windows 11 ARM64 下载以 `win-arm64.exe` 结尾的原生版本，均可直接运行。Linux 或 macOS 请下载与 CPU 匹配的**实验性 CLI** 压缩包，解压后运行 `./disc-image-studio --help`。这些发布包均自带 .NET 运行时。 [GitHub Releases](https://github.com/123RDST/DiscImageStudio/releases)
+```
+p(x) = p₀ · (1 + c₁x + c₂x² + c₃x³)，p₀ 由总轨长 N·β 唯一确定
+```
 
-### 1. 新建工程
+内外半径、容量与三个轨距系数**成套使用**：改了半径不配系数，图案立刻错位。
 
-在主页选择 CD、DVD 或蓝光，指定输出位置后创建工程。
+### 2.3 为什么必须标定
 
-### 2. 设计盘面
+同一标称规格的盘片，实际刻录区边界可以差出 0.1 mm 量级（例：内置预设 23.9915 mm，实盘初始估计 24.1 mm，差 0.11 mm，按 DVD 0.74 µm 轨距折算约 150 圈轨道）。几何模型错一点，图案沿切向累积错位：
 
-在设计页点击「导入图片」，或从资源管理器将单张／多张图片拖入设计页，用图层完成排版，并在右栏「影调」模块调整抖动、伽马、亮度与灰阶档位。
+- **内外半径错** → 图案整体沿螺旋压缩/拉伸，同心圆图案偏心；
+- **轨距形状错** → 细臂图案弯曲（原项目靠三轮粗标 + 边界 + 精标逐步消除）；
+- **角度修正缺失** → 外圈出现 U 形线（见 [2.6](#26-角度修正表)）。
 
-### 3. 预览与导出
+原项目用**图案标定**解决：刻已知图案 → 拍照 → 矫正 → 描点 → 反推参数，三个阶段（粗 / 边界 / 精细）至少消耗数张盘与大量手工操作。本版新增**计时标定**：不需要照片，只需要光驱自己读盘。
 
-在预览页核对盘面投影，在导出页生成 ISO / RAW / WAV+CUE，或使用即时刻录功能直接写入空白盘片。
+### 2.4 一键标定：让光驱自己测量
 
-即时刻录为实验性功能，请只使用可报废的测试介质。
+原理：对同一 LBA 反复读取，**读取完成时刻在盘片旋转周期内的相位**（mod 360°）是该位置螺旋转角的直接观测值。在多个半径处取阶梯测点、解缠整圈、最小二乘拟合，即可解出 `u、v` —— 半径与轨距被一次读回全部测出。
 
-## 功能
+![阶梯相位测量原理](docs/images/timing-phase-ladder.svg)
 
-### 光盘数据生成
+流程与质量门：
 
-- **CD 支持**：支持任何 CD 。您可导出带格式头的 WAV 音轨及配套 CUE，兼容 cdrecord, ImgBurn等刻录软件；也允许导出 RAW 音轨。详见 [CD 刻录兼容说明](docs/CD_AUDIO_COMPATIBILITY.md)。
-- **DVD 支持**：支持任何 DVD。您可导出 ISO 镜像。
-- **蓝光支持**：支持任何单层 BD-R 25 GB，支持纯绘图与 UDF 2.01 文件。详见 [ADDING_BLURAY.md](docs/ADDING_BLURAY.md)。
-- **随盘文件**：CD／DVD／蓝光可在设计页直接选择要保存的文件夹及内圈／外圈位置，也可在导出页调整；设置随工程保存。
-- **音乐 + 图片**：CD 工程可在设计页添加 WAV 音乐，CD 机只播放音乐，不会把图片当作曲目播放。音乐默认在外圈（整盘一个音频区段，图片写在第 1 轨的预间隙里），也可放在内圈（CD-Extra，图片作为第 2 区段的数据轨）。设计页随编辑显示音乐区和图片区的半径与盘面占比。详见 [音乐 + 图片说明](docs/CD_AUDIO_COMPATIBILITY.md#音乐--图片)。
-- **文件区域预览**：混合盘的设计投影和成品读回用蓝色标出文件区（含文件系统）。
-- **介质灰度方案**：CD 与 DVD 均使用黑白二阶，CD 使用 `0D / AA`，DVD 扰码域使用 `A5 / 92`。详见 [PHYSICAL_MODEL_AUDIT.md](docs/PHYSICAL_MODEL_AUDIT.md)。
-- **灰度抖动工具**：独立程序也可将原图处理为 `0/255` 黑白二阶 PNG；支持打开或拖入原图、并排预览及无损 PNG 导出。详见[使用与构建说明](tools/FourLevelDither/README.md)。
-- **盘片预设**：内置数个品牌的光盘参数，覆盖 CD／DVD／BD。您也可将自己标定好的数据贡献给我们，详见[预设维护说明](docs/DISC_PRESETS.md)。
+```mermaid
+flowchart TD
+    A["放入空白盘"] --> B["刻录随机数据测量盘"]
+    B --> C["缓存策略判定<br/>Plain / FUA / Flush / Evict"]
+    C --> D["转速一致性检查<br/>旋转周期 3–400 ms"]
+    D --> E["中部参考 LBA 首测<br/>解出相位常数 c 与整圈数"]
+    E --> F["阶梯式追加测点<br/>DVD 最多 22 点 / CD 最多 36 点<br/>每点重复读取 24–32 次取中位数"]
+    F --> G{"每次追加后重新拟合<br/>χ² ≤ 25 且单点残差 ≤ 90°？"}
+    G -- "否" --> H["✗ 拒绝应用，不写参数"]
+    G -- "是" --> I["质量门：≥8 测点<br/>径向覆盖 ≥ 40%<br/>RMS 残差 ≤ 30°"]
+    I --> J["输出 u、v、c<br/>r₀ = b·u，r₁ = b·√(u²+v·N·β/π)"]
+    J --> K["三次轨距拟合（DVD）<br/>写入标定参数"]
+```
 
-### 辅助标定
+关键设计：
 
-Disc Image Studio 提供粗标定、边界标定和精细标定流程，通过盘面照片估计内外半径与轨距分布。下面的历史实盘对比中，校准前采用恒定轨距，十字线的径向线条出现明显弯曲；使用辅助标定得到的三次轨距参数重新生成并刻录后，线条更接近径向直线。实测精度取决于照片矫正、取点和复刻验证，参数保存的小数位数不代表测量精度。
+- **缓存无法绕过时直接失败**：先在 5 个位置（0.05N–0.95N）测量读取耗时，判定光驱缓存策略（普通读 / FORCE UNIT ACCESS / 刷新缓存 / 逐出缓存，阈值 3 ms），绕不过就报错而不是给出错误结果；
+- **整圈不确定的测点不测**：预测相位不确定度 > 25° 的位置跳过，避免把 ±360° 歧义带进拟合；
+- **自适应选点**：约 1/3 的测点取「离已测点最远」以约束内半径，其余取「使轨距方差最小」以约束轨距形状；
+- **计时拟合只给初值**：CD 存在未知沿轨偏移，应用后仍需第二张盘做图案精标；DVD 无此问题，可直接进入精细阶段。
 
-| 校准前 · 恒定轨距 | 校准后 · 三次轨距 |
+### 2.5 三次轨距拟合
+
+恒定轨距只是初值。三次轨距形状从**同一次测量**的解缠相位表恢复，无需刻第二张盘：
+
+- 在内半径上做 8001 点网格扫描，形状项正则化 λ = 1e-3（仅防止测量区间外的边缘摆动）；
+- **整圈自动修复**：RMS 超过 2.5× 噪声时，对残差最大的 6 个测点尝试 ±360° 重解缠，最多 8 轮；
+- 拟合结果与 [Discratcher](https://github.com/POPCORNBOOM/Discratcher) 的真实 56 测点记录对照验证一致。
+
+### 2.6 角度修正表
+
+三次轨距多项式的拟合基**条件数约 126**——三个系数只能表达一族形状近似的曲线，测出的局部凸起无法通过径向拟合表达。因此本版把残余角度误差**直接以角度存储**：
+
+| 属性 | 值 |
 | --- | --- |
-| ![校准前的 DVD 实拍：径向十字线明显弯曲](docs/images/verbatim-dvd-calibration-before.jpg) | ![校准后的 DVD 实拍：径向十字线更接近直线](docs/images/verbatim-dvd-calibration-after.jpg) |
-| `P20261004-133519.jpg` | `P20261004-135416.jpg` |
+| 自变量 | 归一化半径 `x = (r − r₀)/(r₁ − r₀)` |
+| 插值 | 单调三次 Hermite（PCHIP），无过冲 |
+| 节点 | 最多 256 个，内圈加密（密度指数 2）、外圈稀疏（1.4） |
+| 锚定 | `x = 0` 处为 0（整体旋转归起始角管理） |
 
+角度误差的物理来源是**主轴偏心与转速误差**——与内外半径无关。历史上「应用一键标定结果时清空角度表」的做法是错的：表被清空后外圈重新出现 U 形线。本版（1.6.10 起）保留表，并在日志报告点数或「未标定」提醒。
 
-第一次使用可跟随[DVD 标定实操教程：Verbatim AZO DVD-R](docs/CALIBRATION_TUTORIAL.md)，查看照片矫正、三个标定阶段的实际取点、参数变化与参考值，以及精标后的盘面效果。完整流程与参数说明见[辅助标定说明](docs/CALIBRATION.md)。
+界面上（1.6.11 起）角度表画成折线，来源可追溯：
 
-### 刻录
+![角度修正卡片](docs/images/calibration-angular-card.png)
 
-- **镜像文件输出**：您可以导出完整 ISO / RAW 文件并使用合适的刻录软件手动刻录。
-- **即时流式刻录（实验性）**：CD、DVD 与 BD-R 边生成边刻录，不保存完整镜像；BD-R 走 MMC 顺序写入。
-- **音乐 + 图片刻录（实验性）**：音乐在外圈时整盘一次写入（DAO）；音乐在内圈时按 Track-at-Once 先写入并关闭音乐区段，再按光驱报告的地址生成并写入图片区段，可先模拟写入。两种布局都已实刻并在 CD 机上播放正常。
-- **不要使用非空白介质！**
+卡片标注点数、**来源**（精细标定 + 时间戳 / 命名预设 / 工程文件）与角度范围，切换预设、重新标定或打开工程时曲线与来源同步更新。实测示例：`21 点 · 来源：预设「拾荒者特惠DVD」 · 0.00° ~ +1.33°`。
 
-## 系统与设备要求
+## 3. 实测数据
 
-- x64 桌面版需要 Windows 10 2004（2004/20H1，19041）及以上，或 Windows 11；ARM64 桌面版需要 Windows 11。ARM64 的原生 CI 覆盖软件自检与 GUI 截图，尚未验证实盘刻录。
-- 构建：.NET 10 SDK（`global.json` 锁定 10.0.x）；自行构建的非自包含 GUI 需要 .NET 10 Windows 桌面运行时。Release EXE 已包含运行时，无需另行安装 .NET。
-- “即时刻录”功能需要一台 Windows 可识别的 CD / DVD / BD 刻录机与空白盘片；BD-R 需要支持顺序写入的单层空白盘。
+### 图案标定全程（Verbatim AZO DVD-R，2026-11-04）
 
-## 构建与运行
+完整记录（照片、取点、生成参数）见[实操教程](docs/CALIBRATION_TUTORIAL.md)。盘容量 2,297,888 扇区，位长 133.3 nm：
+
+| 阶段 | 内半径 / mm | 外半径 / mm | 测量输入 |
+| --- | ---: | ---: | --- |
+| 初始估计 | 24.1000 | 57.8000 | — |
+| 粗标定（宽带估值） | 24.0167 | 57.7092 | 沿半径 6 点 |
+| 粗标定（角度标记修正） | 23.9958 | 57.9759 | 同上 + 带内 3 处条纹 |
+| 边界标定修正量 | −4.911 µm | −10.570 µm | 13 段明暗交界 154 点 |
+| 精标定最终 | **23.9914** | **57.9649** | 沿细臂中线 33 点 + 三次轨距拟合 |
+
+精标得到的轨距形状系数（B 组，无量纲）：`c₁ = −7.94e-05，c₂ = +1.46e-04，c₃ = −8.82e-05`。
+
+精标前后的实拍对比（外观对比，非毫米级精度声明）：
+
+| 精标前：细臂明显弯曲 | 精标后：细臂接近径向直线 |
+| --- | --- |
+| ![精标前](docs/images/verbatim-dvd-calibration-before.jpg) | ![精标后](docs/images/verbatim-dvd-calibration-after.jpg) |
+
+### 生成吞吐（Windows x64 · i5-1340P · 16 逻辑 CPU · .NET 10 · Release）
+
+完整 DVD-5 几何（2,297,888 扇区、24–58 mm），预热后三轮取中位数，含解码与初始化，不含磁盘写入：
+
+| 场景 / Fixture | 轨距 | 采样复用关 | 采样复用开 |
+| --- | --- | ---: | ---: |
+| 标定参考图 2400×2400 | 恒定 | 49.49 MiB/s | **190.36 MiB/s** |
+| 标定参考图 2400×2400 | 三次 | 69.26 MiB/s | 187.06 MiB/s |
+| 黑白图片 4096×4096 | 恒定 | 60.07 MiB/s | 143.27 MiB/s |
+| 黑白图片 4096×4096 | 三次 | 90.83 MiB/s | 146.72 MiB/s |
+| 彩色透明度 4096×4096 | 恒定 | 45.18 MiB/s | 45.88 MiB/s |
+
+对照：DVD 24× 刻录需要 33.24 MB/s（约 31.70 MiB/s）的持续供数，以上场景均满足。复现命令与原始分轮数据见[验证记录](docs/VALIDATION.md)。
+
+### 测试运行时
+
+自研测试入口（非 `dotnet test`），55 个套件：
+
+| 配置 | 用时 |
+| --- | ---: |
+| 串行（改进前） | 416 s |
+| 6 分片并行进程（改进后） | **232 s** |
+
+分片为独立进程、独立设置目录，规避 WPF 宿主 / 文化 / 设置文件的进程级共享状态。
+
+## 4. 相比原项目改了什么
+
+| 环节 | 原项目 | 本版 |
+| --- | --- | --- |
+| 标定方式 | 图案标定：拍照、描点、三阶段反复试盘 | **一键标定（CD/DVD）**：刻测量盘 → 读扇区相位 → 拟合 → 写参数，一个按钮走完 |
+| DVD 标定消耗 | 通常多张盘 | **一张盘**得到内外半径 + 三次轨距分布 |
+| 测量计划 | 固定 | 四个滑杆：阶梯数 8–96、每阶读取次数 8–64、内圈起点 1–20%、外圈终点 60–96%，切盘型自动回默认 |
+| 角度修正表 | 只随预设保存，界面上无法分辨有无、用的是哪张 | **折线曲线 + 来源标注**（点数 / 来源 / 角度范围），无表时明确警告外圈 U 形线 |
+| 角度表与新几何 | — | 一键标定应用时**保留**角度表；表随工程文件保存 |
+| 方法选择 | 方法与阶段分两层 | 一行四选一：一键 / 粗 / 边界 / 精细 |
+| CD 音乐 + 图片盘 | 无 | 外圈整盘 DAO 与内圈 CD-Extra 布局，导出 / CLI / 即时刻录均支持，实机验证播放 |
+| 更新渠道 | 指向上游仓库 | 指向本仓库 Release，`latest.json` 带 SHA-256 校验 |
+| 测试 | 单进程串行 | 分片并行 + 套件内部并行，416 s → 232 s |
+
+## 5. 一键标定怎么用
+
+1. 打开「辅助标定」页，确认左上是「一键标定（CD/DVD）」；
+2. 放入一张**同批次、可报废的空白盘**，等待页面显示光驱状态；
+3. 点「开始标定」——程序刻录测量盘、检查缓存与转速、逐级测量、拟合、写入参数；
+4. DVD 完成后可直接进入精细阶段；CD 因沿轨偏移需第二张盘做图案精标。
+
+测量记录可保存为 `.timing-calibration.json` 复用。蓝光没有计时模型，选择 BD 时自动回到图案标定。完整参数语义见[标定详解](docs/CALIBRATION.md)。
+
+## 6. 架构
+
+核心原则：**应用外壳不依赖某一种光盘编码**。CD、DVD、BD 的物理调制、纠错、扇区组织各不相同，共享的是任务生命周期与产品能力，不存在「万能编码器」基类：
+
+```mermaid
+flowchart LR
+    GUI["WPF GUI"] --> Imaging["Imaging 采样"]
+    GUI --> CD["Cd 模块<br/>CD-DA / CD-Extra"]
+    GUI --> DVD["Dvd 模块<br/>DvdImageSolver"]
+    GUI --> BD["BluRay 模块<br/>17PP / ECC / UDF"]
+    GUI --> Burn["Burning<br/>IMAPI2 / MMC"]
+    CLI["跨平台 CLI"] --> Catalog["DiscModuleCatalog"]
+    Catalog --> Contract["IOpticalDiscModule 契约"]
+    Contract --> CD
+    Contract --> DVD
+    Contract --> BD
+```
+
+- `DiscImageStudio.Core`（net10.0）不引用 WPF 与任何编码器，承载契约、预设、工程文件（`.discproj`）与标定几何（含计时标定与角度修正表）；
+- 各介质模块拥有自己的几何、编码与流式生成器；刻录层只负责设备与生命周期，64 MiB 有界缓冲，不落盘完整镜像；
+- 详见[架构说明](docs/ARCHITECTURE.md)（模块边界、扩展规则、CD-Extra 的 MMC 命令序列）。
+
+## 7. 下载与运行
+
+- [v1.6.11 Release](https://github.com/123RDST/DiscImageStudio/releases/tag/v1.6.11) → `DiscImageStudio-v1.6.11-win-x64.exe`
+- 单文件、免安装，自带 .NET 10 运行时，双击即用
+- SHA-256：`6265b81cd781f79d77bab7a102aa8a71f8de9aa1cb72dfb1b3c7019a6a0dbcfe`
+- 软件内「检查更新」读取本仓库 `/releases/latest/download/latest.json`（带哈希校验）
+
+## 8. 已知限制
+
+- **计时标定的实体光驱路径尚未在真实光驱上完整验证**（集成自检使用模拟光驱），请先在可报废的空白盘上试；
+- CD 计时结果有沿轨偏移，应用初值后必须再刻一张盘做图案精标；DVD 无此问题；
+- 即时刻录是实验性功能，只使用空白介质，中断可能报废盘片；
+- BD 不支持一键标定，自动回到图案标定。
+
+## 9. 开发与测试
 
 ```powershell
 dotnet build DiscImageStudio.slnx --configuration Release
-dotnet run --project src/DiscImageStudio.App --configuration Release
+bash tools/run-tests.sh 6          # 6 分片并行跑全部 55 个套件
 ```
 
-构建回归检查：
+测试入口支持 `--shard=i/n`（分片）、`--only=<名字>`（单套件）、`--timing`（逐套件计时）；`tools/run-tests.sh` 为每个分片分配独立设置目录并跳过网络更新检查。边界拟合等无顺序依赖的套件内部也已并行。
 
-```powershell
-dotnet run --project src/DvdImageSolver --configuration Release -- selftest
-dotnet run --project tests/DiscImageStudio.ArchitectureTests --configuration Release
-```
+## 10. 致谢与许可
 
-版本规则、CI 生成 EXE、Release 草稿检查、MSIX 打包与签名流程见[发布指南](docs/RELEASING.md)。
+- 盘面图像生成、光盘物理模型与刻录引擎来自 [JiaFeiMiao-K-Cat/DiscImageStudio](https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio)，上游 [0xfed/DiscImageStudio](https://github.com/0xfed/DiscImageStudio)；
+- 计时标定的测量与拟合算法改写自 [Ashley-QwQ/disc-probe](https://github.com/Ashley-QwQ/disc-probe)（`timing.py` / `geo.py`，GPL-3.0）；
+- 三次轨距拟合改写自 [POPCORNBOOM/Discratcher](https://github.com/POPCORNBOOM/Discratcher)（`solver.rs` / `ladder.rs`，GPL-3.0-or-later），并用其真实测点记录对照验证；
+- 明暗边界测量思路来自[社区讨论 #49](https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio/issues/49)，CD 非恒定轨距换算参考 [#78](https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio/issues/78)、[#92](https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio/issues/92)。
 
-## 命令行
-
-Linux（glibc）可选 `linux-x64` 或 `linux-arm64`。Apple Silicon Mac 选 `osx-arm64`，Intel Mac 选 `osx-x64`。CLI 在本地生成镜像，实际写盘可交给支持相应镜像或音轨的刻录软件。
-
-使用 .NET 10 SDK 从源码运行 CLI
-
-```sh
-dotnet run --project src/DiscImageStudio.Cli -c Release -- --help
-```
-
-CLI 可读取 PNG、JPEG、BMP 和 GIF，使用动画图片的第一帧。下面的例子用两扇区音轨验证安装，同时生成配套 CUE。
-
-```sh
-./disc-image-studio cd-generate --input picture.png --output sample.wav --sectors 2
-```
-
-| 命令 | 说明 |
-| --- | --- |
-| `solve` | 使用固定快速纹理映射（CW 方向）生成 DVD 镜像，黑白纹理可选抖动混合 |
-| `encode` | 将单个 DVD ECC 块编码为 NRZI 通道电平 |
-| `calibrate` | 标定投影：按生成几何从 DVD 源图片取样，按实测几何投到盘面 |
-| `simulate` | 按实测半径对生成的 DVD ISO 做读回模拟 |
-| `selftest` | 运行 DVD 引擎的确定性回归自检 |
-| `cd-generate` | 无随盘文件时生成 WAV + CUE / RAW 音轨；指定 `--data-dir` 时生成 CD 数据盘 ISO；指定 `--music` 时生成图片 + 音乐的 WAV + CUE（音乐在外圈），加 `--music-position inner` 时生成 CD-Extra 第 2 区段（图片数据轨）ISO |
-| `cd-preview-warp` | 标定投影：按实测几何投影 CD 源图片 |
-| `cd-preview-track` | 按标定几何渲染已有的 WAV 或 RAW CD-DA 音轨（读回模拟） |
-| `bd-generate` | 生成完整 BD-R ISO，并写出 `<iso>.json` sidecar |
-| `bd-info` / `bd-probe` / `bd-encode` | 导出 BD 参数、原始负载探针或单个 ECC 簇诊断 |
-
-各命令的完整参数见对应文档。
-
-## 源码结构
-
-```text
-src/DiscImageStudio.Cli/     Linux 和 macOS 离线命令行入口
-src/DiscImageStudio.ImageIO/ WIC 和跨平台图像编解码
-src/DiscImageStudio.Core/    介质无关的模块契约、工程/预设模型、任务与命令目录
-src/DiscImageStudio.Imaging/ CD/DVD/BD 共用的图片预处理与抖动辅助
-src/DiscImageStudio.Burning/ Windows IMAPI2 设备枚举、流缓冲与安全刻录层
-src/DiscImageStudio.Cd/      CD-DA 生成核心与 CD 模块
-src/DiscImageStudio.Dvd/     DVD 引擎适配模块
-src/DiscImageStudio.BluRay/  BD-R 几何、17PP/ECC、3T/6T 映射、流式生成与 ISO
-src/DiscImageStudio.Iso/     UDF 2.01 / ISO9660 写入器
-src/DiscImageStudio.App/     WPF GUI、统一命令行与商店资源
-src/DvdImageSolver/          保持隔离的 DVD 编码/求解引擎
-tests/                       无第三方测试框架的架构回归测试
-packaging/                   MSIX 清单与打包脚本
-tools/                       独立辅助工具与资产生成脚本
-docs/                        架构、引擎、预设、发布等文档
-```
-
-## 文档
-
-| 文档 | 内容 |
-| --- | --- |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 模块抽象、层间边界与扩展规则 |
-| [LOCALIZATION.md](docs/LOCALIZATION.md) | 界面语言配置、系统语言回退与翻译资源维护 |
-| [DVD_ENGINE.md](docs/DVD_ENGINE.md) | DVD NRZI 图像约束求解器的约定、编码链与自检覆盖 |
-| [CD_AUDIO_COMPATIBILITY.md](docs/CD_AUDIO_COMPATIBILITY.md) | CD 音轨格式、字节序、重影排查与音乐 + 图片盘 |
-| [ADDING_BLURAY.md](docs/ADDING_BLURAY.md) | 蓝光模块的物理模型、生成/刻录链路与扩展点 |
-| [DISC_PRESETS.md](docs/DISC_PRESETS.md) | 可编辑盘片预设的分层 JSON 格式与合并规则 |
-| [CALIBRATION.md](docs/CALIBRATION.md) | 照片矫正、三阶段取点示例、三次轨距拟合与再次精标 |
-| [CALIBRATION_TUTORIAL.md](docs/CALIBRATION_TUTORIAL.md) | Verbatim AZO DVD-R 实操教程：三个阶段的真实记录、取点图与精标后效果 |
-| [PHYSICAL_MODEL_AUDIT.md](docs/PHYSICAL_MODEL_AUDIT.md) | CD / DVD 生成物理模型复核 |
-| [VALIDATION.md](docs/VALIDATION.md) | 各轮构建、回归与实盘测试的本地验证记录 |
-| [RELEASING.md](docs/RELEASING.md) | GitHub Release、MSIX 打包、签名测试与商店提交流程 |
-| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
-
-## 参考标准
-
-Disc Image Studio 的实现与物理模型主要参考以下规范：
-
-| 介质 | 标准与版本 | 本项目采用的范围 |
-| --- | --- | --- |
-| CD-R | [ECMA-394，第 1 版，2010 年 12 月](https://ecma-international.org/publications-and-standards/standards/ecma-394/) — *Recordable Compact Disc Systems CD-R Multi-Speed*（[官方 PDF](https://ecma-international.org/wp-content/uploads/ECMA-394_1st_edition_december_2010.pdf)） | CD-R 介质、多速录制及 CD-DA 兼容关系；本项目生成 CD-DA 音轨。 |
-| DVD 公共格式 / DVD-ROM | [ECMA-267，第 3 版，2001 年 4 月](https://ecma-international.org/publications-and-standards/standards/ecma-267/) — *120 mm DVD – Read-only disk*（[官方 PDF](https://ecma-international.org/wp-content/uploads/ECMA-267_3rd_edition_april_2001.pdf)） | DVD 数据帧、ECC、EFMPlus 编码及附录 G 转换表；可记录盘的介质规则另参考 ECMA-359。 |
-| DVD-R | [ECMA-359，第 1 版，2004 年 12 月](https://ecma-international.org/publications-and-standards/standards/ecma-359/) — *80 mm (1,46 Gbytes per side) and 120 mm (4,70 Gbytes per side) DVD Recordable Disk (DVD-R)*（[官方 PDF](https://ecma-international.org/wp-content/uploads/ECMA-359_1st_edition_december_2004.pdf)） | 单层 DVD-R 的几何、扇区、纠错和编码；标准包含单面及双面介质，双面不等于双层。 |
-| BD-R | [ISO/IEC 30190:2021，第 3 版，2021 年 1 月](https://www.iso.org/standard/80770.html) — 120 mm 单层（25.0 GB）及双层（50.0 GB）可记录 BD 的信息交换与存储规范 | 实验模式采用单层 25 GB 的轨道、扇区布局、纠错和编码；目前不支持双层盘。 |
-
-CD 公共编码部分还参考了 [ECMA-130，第 2 版（CD-ROM，1996）](https://ecma-international.org/publications-and-standards/standards/ecma-130/)。
-
-## 刻录与介质安全须知
-
-- Disc Image Studio 不安装驱动或服务；“即时刻录”功能使用了 Windows 自带的 IMAPI2，拒绝非空白介质。
-- “即时刻录”功能已有部分实盘反馈，对不同设备、介质与刻录入口的验证覆盖仍有限，属于实验性功能，请只使用可报废的测试介质。刻录中断、断电或生成速度不足仍可能使盘片报废！
-- 实际可见效果取决于盘片、刻录机、固件与写入策略。
-- 混合文件夹会在开始刻录前扫描目录并固定布局；期间源文件大小改变会安全终止任务，已开始写入的盘片仍可能报废。
-- BD-R 顺序写入不提供备用区重映射；中断后同一盘片通常不能继续写入。
-
-## 隐私与安全
-
-- Disc Image Studio 除您在关于页手动检查更新时访问 GitHub Releases 外，不联网、不上传文件、不收集遥测，详见[隐私政策](PRIVACY.md)。
-- 发现安全问题请不要在公开 Issue 中披露，按[安全政策](SECURITY.md)使用 GitHub 私密报告。
-
-## 贡献
-
-欢迎报告问题与提交代码。开发环境搭建、模块边界规则、测试要求与 Pull Request 流程见[贡献指南](CONTRIBUTING.md)。
-
-## 许可证
-
-项目采用 [GNU GPL v3.0 or later](LICENSE)（`GPL-3.0-or-later`）。CD 交织实现包含从 CDImage 移植并修改的代码，整体分发沿用兼容的 GPL 授权；分发二进制或修改版时须遵守对应源代码等要求。第三方字体与组件遵循各自许可证，详见 [授权说明](LICENSE-NOTICE.md) 和 [第三方声明](THIRD-PARTY-NOTICES.txt)；应用"关于"页也可离线查看完整文本。
-
-## 致谢
-
-感谢 [arduinocelentano 的 CDImage 项目](https://github.com/arduinocelentano/cdimage)，它展示了通过生成 CD 音轨在盘面形成可见图像的方法。本项目的 CD 交织实现由其相关代码移植并继续修改，CD 盘面绘图思路也受其启发。CDImage 原作者及贡献者的工作为本项目提供了重要基础。
-
----
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=jiafeimiao-k-cat%2Fdiscimagestudio&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=jiafeimiao-k-cat/discimagestudio&type=date&legend=top-left" />
- </picture>
-</a>
+本版以 **GPL-3.0-or-later** 发布；`LICENSE`、`THIRD-PARTY-NOTICES.txt` 保留原作者与第三方组件归属。仓库内 `README.en.md` 等其他语言文件是**原项目文档的译文**，不含本版改动，请以本页为准。

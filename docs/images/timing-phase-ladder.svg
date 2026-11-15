@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 430" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif">
+  <rect width="960" height="430" fill="#ffffff"/>
+  <text x="24" y="34" font-size="17" font-weight="700" fill="#24292f">阶梯相位测量原理</text>
+  <text x="24" y="56" font-size="12" fill="#57606a">读取完成时刻 → 相位（mod 360°）→ 按模型解缠整圈 → 最小二乘拟合 (u, v, c)</text>
+
+  <!-- 左：测量盘俯视 -->
+  <circle cx="205" cy="225" r="168" fill="none" stroke="#d0d7de" stroke-width="1.5"/>
+  <circle cx="205" cy="225" r="58" fill="none" stroke="#8c959f" stroke-width="1" stroke-dasharray="4 3"/>
+  <circle cx="205" cy="225" r="30" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1.5"/>
+  <circle cx="205" cy="225" r="70" fill="none" stroke="#eaeef2" stroke-width="1"/>
+  <circle cx="205" cy="225" r="86" fill="none" stroke="#eaeef2" stroke-width="1"/>
+  <circle cx="205" cy="225" r="102" fill="none" stroke="#eaeef2" stroke-width="1"/>
+  <circle cx="205" cy="225" r="118" fill="none" stroke="#eaeef2" stroke-width="1"/>
+  <circle cx="205" cy="225" r="134" fill="none" stroke="#eaeef2" stroke-width="1"/>
+  <circle cx="205" cy="225" r="150" fill="none" stroke="#eaeef2" stroke-width="1"/>
+  <!-- 阶梯测点（沿 45° 方向由内到外） -->
+  <g fill="#cf222e">
+    <circle cx="260" cy="170" r="4.5"/>
+    <circle cx="273" cy="157" r="4.5"/>
+    <circle cx="286" cy="144" r="4.5"/>
+    <circle cx="298" cy="132" r="4.5"/>
+    <circle cx="311" cy="119" r="4.5"/>
+  </g>
+  <g font-size="10.5" fill="#57606a">
+    <text x="270" y="168">0.05N</text>
+    <text x="283" y="155">0.25N</text>
+    <text x="296" y="142">0.50N</text>
+    <text x="308" y="130">0.75N</text>
+    <text x="320" y="117">0.95N</text>
+  </g>
+  <text x="205" y="228" font-size="10" fill="#8c959f" text-anchor="middle">盘心</text>
+  <text x="205" y="412" font-size="12" fill="#24292f" text-anchor="middle">测量盘（随机数据）· 每阶梯重复读取 24–32 次取相位中位数</text>
+  <line x1="358" y1="90" x2="358" y2="380" stroke="#d0d7de" stroke-width="1"/>
+
+  <!-- 右：展开相位坐标 -->
+  <defs>
+    <marker id="ax" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+  <line x1="480" y1="330" x2="940" y2="330" stroke="#57606a" stroke-width="1.5" marker-end="url(#ax)"/>
+  <line x1="480" y1="330" x2="480" y2="62" stroke="#57606a" stroke-width="1.5" marker-end="url(#ax)"/>
+  <text x="940" y="352" font-size="12" fill="#24292f" text-anchor="end">通道比特 n（内圈 → 外圈）</text>
+  <text x="466" y="200" font-size="12" fill="#24292f" text-anchor="middle" transform="rotate(-90 466 200)">展开相位 θ(n)</text>
+
+  <!-- 模型曲线 -->
+  <path d="M 480,330 Q 700,150 930,95" fill="none" stroke="#0969da" stroke-width="2.2"/>
+  <text x="700" y="43" font-size="13" fill="#0969da" text-anchor="middle" font-weight="600">θ(n) = 2n / (√(u² + v·n/π) + u)</text>
+  <text x="700" y="62" font-size="11" fill="#57606a" text-anchor="middle">u = r₀/b，v = p/b（b = 通道比特长度）</text>
+
+  <!-- 测点与误差棒 -->
+  <g stroke="#57606a" stroke-width="1">
+    <line x1="515" y1="287" x2="515" y2="305"/>
+    <line x1="577" y1="253" x2="577" y2="271"/>
+    <line x1="640" y1="203" x2="640" y2="221"/>
+    <line x1="703" y1="175" x2="703" y2="193"/>
+    <line x1="784" y1="138" x2="784" y2="156"/>
+    <line x1="875" y1="107" x2="875" y2="125"/>
+  </g>
+  <g fill="#cf222e">
+    <circle cx="515" cy="296" r="4"/>
+    <circle cx="577" cy="262" r="4"/>
+    <circle cx="640" cy="212" r="4"/>
+    <circle cx="703" cy="184" r="4"/>
+    <circle cx="784" cy="147" r="4"/>
+    <circle cx="875" cy="116" r="4"/>
+  </g>
+
+  <!-- 整圈不确定示意 -->
+  <line x1="640" y1="203" x2="640" y2="158" stroke="#8c959f" stroke-width="1" stroke-dasharray="4 3"/>
+  <circle cx="640" cy="150" r="4" fill="none" stroke="#cf222e" stroke-width="1.4"/>
+  <line x1="655" y1="160" x2="655" y2="202" stroke="#8c959f" stroke-width="1.2"/>
+  <polygon points="655,154 651,162 659,162" fill="#8c959f"/>
+  <polygon points="655,208 651,200 659,200" fill="#8c959f"/>
+  <text x="632" y="186" font-size="11" fill="#57606a" text-anchor="end">±360° · 整圈不确定</text>
+
+  <!-- 图例 -->
+  <g font-size="11.5" fill="#24292f">
+    <circle cx="690" cy="378" r="4" fill="#cf222e"/>
+    <text x="700" y="382">阶梯相位中位数 ± σ</text>
+    <line x1="800" y1="378" x2="822" y2="378" stroke="#0969da" stroke-width="2.2"/>
+    <text x="828" y="382">螺旋转角模型</text>
+  </g>
+</svg>
